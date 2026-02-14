@@ -14,6 +14,7 @@ import {
 import { AlertCircle } from 'lucide-react';
 import React, { useMemo } from 'react';
 import { DebouncedInput } from './DebouncedInput';
+import { TableToolbar } from './TableToolbar';
 import { useSmartTable } from './useSmartTable';
 
 interface SmartTableEditableProps {
@@ -130,65 +131,64 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
     }
 
     return (
-        <ContextMenu>
-            <ContextMenuTrigger disabled={false}>
-                <div className="rounded-md border my-4 overflow-hidden w-full">
-                    <div className="relative w-full overflow-auto">
-                        <table className="w-full caption-bottom text-sm">
-                            <thead className="[&_tr]:border-b">
-                                {table.getHeaderGroups().map(headerGroup => (
-                                    <tr key={headerGroup.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                                        {headerGroup.headers.map(header => (
-                                            <ContextMenu key={header.id}>
-                                                <ContextMenuTrigger asChild>
-                                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 bg-muted/50 cursor-context-menu">
-                                                        {header.isPlaceholder
-                                                            ? null
-                                                            : flexRender(
-                                                                header.column.columnDef.header,
-                                                                header.getContext()
-                                                            )}
-                                                    </th>
-                                                </ContextMenuTrigger>
-                                                <ContextMenuContent>
-                                                    <ContextMenuItem onClick={() => addColumn(parseInt(header.id), 'before')}>Add Col Left</ContextMenuItem>
-                                                    <ContextMenuItem onClick={() => addColumn(parseInt(header.id), 'after')}>Add Col Right</ContextMenuItem>
-                                                    <ContextMenuSeparator />
-                                                    <ContextMenuItem onClick={() => deleteColumn(parseInt(header.id))} className="text-destructive">Delete Column</ContextMenuItem>
-                                                </ContextMenuContent>
-                                            </ContextMenu>
-                                        ))}
-                                    </tr>
-                                ))}
-                            </thead>
-                            <tbody className="[&_tr:last-child]:border-0">
-                                {table.getRowModel().rows.map(row => (
-                                    <ContextMenu key={row.id}>
+        <div className="rounded-md border my-4 overflow-hidden w-full">
+            <div className="relative w-full overflow-auto">
+                <table className="w-full caption-bottom text-sm">
+                    <thead className="[&_tr]:border-b">
+                        {table.getHeaderGroups().map(headerGroup => (
+                            <tr key={headerGroup.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                                {headerGroup.headers.map(header => (
+                                    <ContextMenu key={header.id}>
                                         <ContextMenuTrigger asChild>
-                                            <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-context-menu">
-                                                {row.getVisibleCells().map(cell => (
-                                                    <td key={cell.id} className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
-                                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                    </td>
-                                                ))}
-                                            </tr>
+                                            <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 bg-muted/50 cursor-context-menu">
+                                                {header.isPlaceholder
+                                                    ? null
+                                                    : flexRender(
+                                                        header.column.columnDef.header,
+                                                        header.getContext()
+                                                    )}
+                                            </th>
                                         </ContextMenuTrigger>
                                         <ContextMenuContent>
-                                            <ContextMenuItem onClick={() => addRow(row.index + 1, 'before')}>Add Row Above</ContextMenuItem>
-                                            <ContextMenuItem onClick={() => addRow(row.index + 1, 'after')}>Add Row Below</ContextMenuItem>
+                                            <ContextMenuItem onClick={() => addColumn(parseInt(header.id), 'before')}>Add Col Left</ContextMenuItem>
+                                            <ContextMenuItem onClick={() => addColumn(parseInt(header.id), 'after')}>Add Col Right</ContextMenuItem>
                                             <ContextMenuSeparator />
-                                            <ContextMenuItem onClick={() => deleteRow(row.index + 1)} className="text-destructive">Delete Row</ContextMenuItem>
+                                            <ContextMenuItem onClick={() => deleteColumn(parseInt(header.id))} className="text-destructive">Delete Column</ContextMenuItem>
                                         </ContextMenuContent>
                                     </ContextMenu>
                                 ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-                <ContextMenuItem>Global Actions (Right click row/col for specifics)</ContextMenuItem>
-            </ContextMenuContent>
-        </ContextMenu>
+                            </tr>
+                        ))}
+                    </thead>
+                    <tbody className="[&_tr:last-child]:border-0">
+                        {table.getRowModel().rows.map(row => (
+                            <ContextMenu key={row.id}>
+                                <ContextMenuTrigger asChild>
+                                    <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-context-menu">
+                                        {row.getVisibleCells().map(cell => (
+                                            <td key={cell.id} className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                </ContextMenuTrigger>
+                                <ContextMenuContent>
+                                    <ContextMenuItem onClick={() => addRow(row.index + 1, 'before')}>Add Row Above</ContextMenuItem>
+                                    <ContextMenuItem onClick={() => addRow(row.index + 1, 'after')}>Add Row Below</ContextMenuItem>
+                                    <ContextMenuSeparator />
+                                    <ContextMenuItem onClick={() => deleteRow(row.index + 1)} className="text-destructive">Delete Row</ContextMenuItem>
+                                </ContextMenuContent>
+                            </ContextMenu>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <div className="border-t">
+                <TableToolbar
+                    onAddRow={() => addRow(localData.length - 1, 'after')}
+                    onAddColumn={() => addColumn(colCount - 1, 'after')}
+                />
+            </div>
+        </div>
     );
 };
