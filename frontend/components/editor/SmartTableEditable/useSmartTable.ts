@@ -133,34 +133,52 @@ export const useSmartTable = ({ content, onUpdate }: UseSmartTableProps) => {
     }, [updateParent]);
 
     const addColumn = useCallback((colIndex: number, where: 'before' | 'after') => {
-        if (mode !== 'arrays') {
-            alert("Column addition only supported for Array of Arrays mode currently.");
-            return;
-        }
         const currentData = dataRef.current;
-        const newData = currentData.map(row => {
-            const newRow = [...row];
-            const insertIndex = where === 'before' ? colIndex : colIndex + 1;
-            newRow.splice(insertIndex, 0, "");
-            return newRow;
-        });
-        setLocalData(newData);
-        updateParent(newData);
+
+        if (mode === 'arrays') {
+            const newData = currentData.map(row => {
+                const newRow = [...row];
+                const insertIndex = where === 'before' ? colIndex : colIndex + 1;
+                newRow.splice(insertIndex, 0, "");
+                return newRow;
+            });
+            setLocalData(newData);
+            updateParent(newData);
+        } else {
+            // Objects mode: prompt for column name
+            const colName = prompt("New column name:");
+            if (!colName || colName.trim() === '') return;
+            const key = colName.trim();
+            const newData = currentData.map(row => ({ ...row, [key]: "" }));
+            setLocalData(newData);
+            updateParent(newData);
+        }
     }, [mode, updateParent]);
 
     const deleteColumn = useCallback((colIndex: number) => {
-        if (mode !== 'arrays') {
-            alert("Column deletion only supported for Array of Arrays mode currently.");
-            return;
-        }
         const currentData = dataRef.current;
-        const newData = currentData.map(row => {
-            const newRow = [...row];
-            newRow.splice(colIndex, 1);
-            return newRow;
-        });
-        setLocalData(newData);
-        updateParent(newData);
+
+        if (mode === 'arrays') {
+            const newData = currentData.map(row => {
+                const newRow = [...row];
+                newRow.splice(colIndex, 1);
+                return newRow;
+            });
+            setLocalData(newData);
+            updateParent(newData);
+        } else {
+            // Objects mode: resolve key name from index and remove it
+            if (currentData.length === 0) return;
+            const keys = Object.keys(currentData[0]);
+            const keyToDelete = keys[colIndex];
+            if (!keyToDelete) return;
+            const newData = currentData.map(row => {
+                const { [keyToDelete]: _, ...rest } = row;
+                return rest;
+            });
+            setLocalData(newData);
+            updateParent(newData);
+        }
     }, [mode, updateParent]);
 
     const handleHeaderUpdate = useCallback((index: number, value: string) => {

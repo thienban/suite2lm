@@ -70,21 +70,21 @@ interface SmartTableEditableProps {
 ## 4. Étapes d'Implémentation
 
 ### Étape 1 : Mise en place de TanStack Table
-*   [ ] Installer `@tanstack/react-table`.
-*   [ ] Créer un composant de base `DataTable` avec Shadcn UI.
+*   [X] Installer `@tanstack/react-table`.
+*   [X] Créer un composant de base `DataTable` avec Shadcn UI.
 
 ### Étape 2 : Rendre la Table Éditable
-*   [ ] Créer une cellule éditable (`EditableCell`).
-*   [ ] Gérer le state des données via `useState` ou un store léger.
-*   [ ] Implémenter la logique de mise à jour d'une cellule `rowIndex, colId`.
+*   [X] Créer une cellule éditable (`EditableCell`).
+*   [X] Gérer le state des données via `useState` ou un store léger.
+*   [X] Implémenter la logique de mise à jour d'une cellule `rowIndex, colId`.
 
 ### Étape 3 : Intégration TipTap (Bidirectionnel)
-*   [ ] Modifier `SmartTableExtension` pour passer une fonction de callback (`updateNodeContent`) au composant React.
-*   [ ] Dans le composant React, déclencher ce callback à chaque modification de la grille (avec debounce si nécessaire pour la performance).
+*   [X] Modifier `SmartTableExtension` pour passer une fonction de callback (`updateNodeContent`) au composant React.
+*   [X] Dans le composant React, déclencher ce callback à chaque modification de la grille (avec debounce si nécessaire pour la performance).
 
 ### Étape 4 : Actions de Structure (Lignes/Colonnes)
-*   [ ] Ajouter des boutons ou un menu contextuel pour `addRow`, `addColumn`.
-*   [ ] Mettre à jour le tableau de données en conséquence.
+*   [X] Ajouter des boutons ou un menu contextuel pour `addRow`, `addColumn`.
+*   [X] Mettre à jour le tableau de données en conséquence.
 
 ---
 
