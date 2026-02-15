@@ -1,5 +1,8 @@
 'use client';
 
+import { CommandBar, SlashCommand } from '@/components/ai/CommandBar';
+import { SlashMenu } from '@/components/ai/SlashMenu';
+import { SlashMenuExtension } from '@/components/ai/SlashMenuExtension';
 import { Button } from '@/components/ui/button';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -10,9 +13,10 @@ import {
     Heading2,
     Italic,
     List,
-    Save
+    Save,
+    Sparkles
 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Markdown } from 'tiptap-markdown';
 import { SmartTableExtension } from './SmartTable';
 
@@ -22,12 +26,16 @@ export interface EditorProps {
 }
 
 export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) => {
+    const [commandBarOpen, setCommandBarOpen] = useState(false);
+    const [slashCommand, setSlashCommand] = useState<SlashCommand | null>(null);
+
     const editor = useEditor({
         extensions: [
             StarterKit.configure({
                 codeBlock: false,
             }),
             SmartTableExtension,
+            SlashMenuExtension,
             Markdown.configure({
                 html: true,
                 transformPastedText: true,
@@ -48,6 +56,31 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
             editor.commands.setContent(initialContent);
         }
     }, [initialContent, editor]);
+
+    // Global keyboard shortcut: Ctrl+K / Cmd+K
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setSlashCommand(null); // Reset the initial command
+                setCommandBarOpen(prev => !prev);
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    const handleOpenCommandBar = useCallback(() => {
+        setSlashCommand(null);
+        setCommandBarOpen(true);
+    }, []);
+
+    // Slash menu selects a command → open CommandBar with that command pre-loaded
+    const handleSlashCommand = useCallback((cmd: SlashCommand) => {
+        setSlashCommand(cmd);
+        setCommandBarOpen(true);
+    }, []);
 
     if (!editor) {
         return null;
@@ -107,6 +140,16 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
                     >
                         <Code className="w-4 h-4" />
                     </Button>
+                    <div className="w-px h-6 bg-border mx-1" />
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleOpenCommandBar}
+                        title="AI Command (Ctrl+K)"
+                        className="text-violet-500 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                    </Button>
                 </div>
 
                 <Button
@@ -118,9 +161,24 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
                     Save
                 </Button>
             </div>
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-auto p-4 relative">
                 <EditorContent editor={editor} />
+
+                {/* Inline Slash Menu */}
+                <SlashMenu
+                    editor={editor as any}
+                    onSelectCommand={handleSlashCommand}
+                />
             </div>
+
+            {/* AI Command Bar */}
+            <CommandBar
+                editor={editor}
+                open={commandBarOpen}
+                onOpenChange={setCommandBarOpen}
+                initialCommand={slashCommand}
+            />
         </div>
     );
 };
+

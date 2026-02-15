@@ -3,13 +3,18 @@ package main
 import (
 	"log"
 	"os"
+	"suite2lm/ai"
 	"suite2lm/handlers"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file if present (ignore error if not found)
+	_ = godotenv.Load()
+
 	// Initialize Gin router
 	r := gin.Default()
 
@@ -17,6 +22,7 @@ func main() {
 	config := cors.DefaultConfig()
 	config.AllowOrigins = []string{"http://localhost:3000"} // Allow frontend
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	config.AllowHeaders = []string{"Content-Type", "Authorization"}
 	r.Use(cors.New(config))
 
 	// Ensure workspace directory exists
@@ -28,12 +34,28 @@ func main() {
 		}
 	}
 
-	// Register routes
+	// Register file routes
 	api := r.Group("/api")
 	{
 		api.GET("/files", handlers.ListFiles)
 		api.GET("/files/:name", handlers.GetFileContent)
 		api.POST("/files/:name", handlers.SaveFileContent)
+	}
+
+	// Register AI routes (optional — only if LLM_API_KEY is configured)
+	aiConfig, err := ai.LoadConfig()
+	if err != nil {
+		log.Printf("⚠️  AI service disabled: %v", err)
+		log.Println("💡 Set LLM_API_KEY in .env to enable AI features.")
+	} else {
+		provider, err := ai.NewProvider(aiConfig)
+		if err != nil {
+			log.Printf("⚠️  AI service disabled: %v", err)
+		} else {
+			aiHandler := ai.NewHandler(provider, aiConfig)
+			api.POST("/ai/command", aiHandler.HandleCommand)
+			log.Printf("✅ AI service enabled (provider: %s, model: %s)", aiConfig.Provider, aiConfig.Model)
+		}
 	}
 
 	// Start server
