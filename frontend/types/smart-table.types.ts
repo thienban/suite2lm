@@ -18,7 +18,7 @@ export interface SmartTableColumn {
     options?: string[];   // for "select" type
     unit?: string;        // for "currency" type (e.g. "EUR")
     default?: unknown;    // default value for new rows
-    value?: string;       // for "formula" type (expression string, evaluated in Step 6)
+    expression?: string;  // for "formula" type — e.g. "[prix] * [quantite]"
 }
 
 export interface SmartTableDocument {

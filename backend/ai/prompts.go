@@ -23,10 +23,12 @@ Format attendu :
   ]
 }
 
-Types de colonnes disponibles : text, number, currency, percentage, select, date.
+Types de colonnes disponibles : text, number, currency, percentage, select, date, formula.
 Pour "currency", ajoute "unit": "EUR" (ou autre devise).
 Pour "select", ajoute "options": ["opt1", "opt2"].
 Pour "percentage", les valeurs sont des décimaux (0.20 = 20%).
+Pour "formula", ajoute "expression": "[col_key] * [other_key]" (utilise les crochets autour des noms de colonnes).
+Les colonnes formula ne doivent PAS avoir de valeurs dans data — elles sont calculées automatiquement.
 Génère toujours un "id" unique commençant par "tab_".`,
 
 	"table_edit": `Tu es un assistant spécialisé dans la modification de tableaux de données structurés.
@@ -40,7 +42,9 @@ RÈGLES STRICTES :
 - Pas de markdown, pas de backticks, pas d'explication, pas de texte avant ou après le JSON.
 - Le résultat doit commencer par { et finir par }.
 - Tu peux modifier le schema (ajouter/modifier des colonnes) si l'instruction le demande.
-- Types disponibles : text, number, currency, percentage, select, date.`,
+- Types disponibles : text, number, currency, percentage, select, date, formula.
+- Pour "formula", utilise "expression": "[col_key] * [other_key]" (crochets autour des clés).
+- Ne mets jamais de valeurs calculées dans data pour les colonnes formula.`,
 
 	"text_generate": `Tu es un assistant d'écriture.
 Continue le texte fourni de manière naturelle et cohérente.

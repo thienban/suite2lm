@@ -7,6 +7,7 @@ import {
     ContextMenuSeparator,
     ContextMenuTrigger
 } from "@/components/ui/context-menu";
+import { useFormulaEngine } from '@/hooks/useFormulaEngine';
 import type { SmartTableColumn } from '@/types/smart-table.types';
 import {
     AllCommunityModule,
@@ -116,9 +117,11 @@ const buildColDef = (col: SmartTableColumn): ColDef => {
             return {
                 ...base,
                 editable: false,
-                cellStyle: { color: 'var(--muted-foreground)', fontStyle: 'italic' },
-                valueGetter: () => '(formule)',
-                headerTooltip: col.value ? `= ${col.value}` : undefined,
+                cellStyle: (params: { value: unknown }) => ({
+                    color: params.value === '#ERR' ? 'var(--destructive)' : 'var(--muted-foreground)',
+                    fontStyle: 'italic',
+                }),
+                headerTooltip: col.expression ? `= ${col.expression}` : undefined,
             };
 
         case 'text':
@@ -139,6 +142,9 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
         addColumn,
         deleteColumn,
     } = useSmartTable({ content, onUpdate });
+
+    // Compute formula values
+    const computedData = useFormulaEngine({ schema, data });
 
     const gridRef = useRef<AgGridReact>(null);
 
@@ -204,7 +210,7 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
                     <div style={{ width: '100%' }}>
                         <AgGridReact
                             ref={gridRef}
-                            rowData={data}
+                            rowData={computedData}
                             columnDefs={columnDefs}
                             defaultColDef={defaultColDef}
                             theme={smartTableTheme}
