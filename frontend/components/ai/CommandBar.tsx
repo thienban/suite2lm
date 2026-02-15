@@ -19,6 +19,8 @@ interface CommandBarProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     initialCommand?: SlashCommand | null;
+    activeTableContent?: string | null;
+    activeTablePos?: number | null;
 }
 
 export interface SlashCommand {
@@ -125,24 +127,28 @@ const TablePreview: React.FC<TablePreviewProps> = ({ json }) => {
     );
 };
 
-export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChange, initialCommand }) => {
+export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChange, initialCommand, activeTableContent, activeTablePos }) => {
     const [input, setInput] = useState('');
     const [result, setResult] = useState<string | null>(null);
     const [resultType, setResultType] = useState<string | null>(null);
     const [selectedCommand, setSelectedCommand] = useState<SlashCommand | null>(null);
     const [selectedTable, setSelectedTable] = useState<string | null>(null);
+    const [selectedTablePos, setSelectedTablePos] = useState<number | null>(null);
+    const [autoDetected, setAutoDetected] = useState(false);
     const [availableTables, setAvailableTables] = useState<{ label: string; content: string }[]>([]);
     const [showTablePicker, setShowTablePicker] = useState(false);
-    const { execute, loading, error } = useAICommand();
+    const { execute, loading, error, abort } = useAICommand();
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Focus input when opened
+    // Focus input when opened, or abort and clean up when closed
     useEffect(() => {
         if (open) {
             setInput('');
             setResult(null);
             setResultType(null);
             setSelectedTable(null);
+            setSelectedTablePos(null);
+            setAutoDetected(false);
             setAvailableTables([]);
             setShowTablePicker(false);
 
@@ -153,9 +159,19 @@ export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChan
                 setSelectedCommand(null);
             }
 
+            // Auto-detect: if cursor is near a Smart Table, auto-populate
+            if (activeTableContent && activeTablePos !== null && activeTablePos !== undefined) {
+                setSelectedTable(activeTableContent);
+                setSelectedTablePos(activeTablePos);
+                setAutoDetected(true);
+            }
+
             setTimeout(() => inputRef.current?.focus(), 50);
+        } else {
+            // Abort any pending AI request when closing
+            abort();
         }
-    }, [open, initialCommand]);
+    }, [open, initialCommand, activeTableContent, activeTablePos, abort]);
 
     // Find all tables in the document
     const findDocumentTables = useCallback(() => {
@@ -189,11 +205,14 @@ export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChan
         const selection = editor.state.doc.textBetween(from, to, '\n');
         const fullText = editor.state.doc.textContent;
 
+        // Use selectedTable (manually picked or auto-detected)
+        const tableContext = selectedTable || '';
+
         return {
             documentContent: fullText,
             selection,
             cursorPosition: from,
-            activeTable: selectedTable || '',
+            activeTable: tableContext,
         };
     }, [editor, selectedTable]);
 
@@ -280,6 +299,8 @@ export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChan
     // Handle table selection from picker
     const handleTableSelect = useCallback((tableContent: string) => {
         setSelectedTable(tableContent);
+        setSelectedTablePos(null); // manual pick has no position
+        setAutoDetected(false);
         setShowTablePicker(false);
         setInput('');
         setTimeout(() => inputRef.current?.focus(), 50);
@@ -291,14 +312,20 @@ export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChan
             setShowTablePicker(false);
             setAvailableTables([]);
             setSelectedCommand(null);
-        } else if (selectedTable) {
+        } else if (selectedTable && !autoDetected) {
+            // Only clear manually-selected table, not auto-detected ones
             setSelectedTable(null);
+            setSelectedTablePos(null);
+        } else if (selectedTable && autoDetected) {
+            setSelectedTable(null);
+            setSelectedTablePos(null);
+            setAutoDetected(false);
         } else {
             setSelectedCommand(null);
         }
         setInput('');
         setTimeout(() => inputRef.current?.focus(), 50);
-    }, [showTablePicker, selectedTable]);
+    }, [showTablePicker, selectedTable, autoDetected]);
 
     // Insert result into the editor
     const handleInsert = useCallback(() => {
@@ -307,27 +334,45 @@ export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChan
         switch (resultType) {
             case 'table_update': {
                 if (selectedTable) {
-                    // Find the existing table code block and replace its content
                     let replaced = false;
-                    editor.state.doc.descendants((node, pos) => {
-                        if (replaced) return false;
-                        if (node.type.name === 'codeBlock') {
-                            const lang = node.attrs.language;
-                            if ((lang === 'json' || lang === 'smart-table') && node.textContent === selectedTable) {
-                                // Replace the content inside this code block
-                                const contentStart = pos + 1; // after the opening of the node
-                                const contentEnd = contentStart + node.content.size;
-                                const tr = editor.state.tr.replaceWith(
-                                    contentStart,
-                                    contentEnd,
-                                    editor.state.schema.text(result)
-                                );
-                                editor.view.dispatch(tr);
-                                replaced = true;
-                                return false;
-                            }
+
+                    // Strategy 1: Use position-based replacement if we have a valid pos
+                    if (selectedTablePos !== null) {
+                        const node = editor.state.doc.nodeAt(selectedTablePos);
+                        if (node && node.type.name === 'codeBlock') {
+                            const contentStart = selectedTablePos + 1;
+                            const contentEnd = contentStart + node.content.size;
+                            const tr = editor.state.tr.replaceWith(
+                                contentStart,
+                                contentEnd,
+                                editor.state.schema.text(result)
+                            );
+                            editor.view.dispatch(tr);
+                            replaced = true;
                         }
-                    });
+                    }
+
+                    // Strategy 2: Fallback to content-match based replacement
+                    if (!replaced) {
+                        editor.state.doc.descendants((node, pos) => {
+                            if (replaced) return false;
+                            if (node.type.name === 'codeBlock') {
+                                const lang = node.attrs.language;
+                                if ((lang === 'json' || lang === 'smart-table') && node.textContent === selectedTable) {
+                                    const contentStart = pos + 1;
+                                    const contentEnd = contentStart + node.content.size;
+                                    const tr = editor.state.tr.replaceWith(
+                                        contentStart,
+                                        contentEnd,
+                                        editor.state.schema.text(result)
+                                    );
+                                    editor.view.dispatch(tr);
+                                    replaced = true;
+                                    return false;
+                                }
+                            }
+                        });
+                    }
                 } else {
                     // No existing table — insert as a new smart-table code block
                     editor.chain().focus().setCodeBlock({ language: 'json' }).run();
@@ -353,7 +398,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChan
         }
 
         onOpenChange(false);
-    }, [result, resultType, editor, onOpenChange]);
+    }, [result, resultType, editor, onOpenChange, selectedTable, selectedTablePos]);
 
     // Build placeholder based on state
     const getPlaceholder = () => {
@@ -394,14 +439,18 @@ export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChan
                             </button>
                         )}
 
-                        {/* Show selected table badge */}
+                        {/* Show selected table badge (green = auto-detected, blue = manually picked) */}
                         {selectedTable && (
                             <button
-                                onClick={() => { setSelectedTable(null); setShowTablePicker(true); setAvailableTables(findDocumentTables()); }}
-                                className="flex items-center gap-1 shrink-0 mr-2 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 text-xs font-medium hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors max-w-[140px]"
+                                onClick={() => { setSelectedTable(null); setSelectedTablePos(null); setAutoDetected(false); setShowTablePicker(true); setAvailableTables(findDocumentTables()); }}
+                                className={`flex items-center gap-1 shrink-0 mr-2 px-2 py-0.5 rounded-md text-xs font-medium transition-colors max-w-[180px] ${autoDetected
+                                        ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800'
+                                        : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
+                                    }`}
                             >
                                 <Table className="size-3 shrink-0" />
                                 <span className="truncate">
+                                    {autoDetected ? '✦ ' : ''}
                                     {(() => {
                                         try {
                                             const d = JSON.parse(selectedTable);

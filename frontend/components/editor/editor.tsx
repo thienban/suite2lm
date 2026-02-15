@@ -4,6 +4,7 @@ import { CommandBar, SlashCommand } from '@/components/ai/CommandBar';
 import { SlashMenu } from '@/components/ai/SlashMenu';
 import { SlashMenuExtension } from '@/components/ai/SlashMenuExtension';
 import { Button } from '@/components/ui/button';
+import { useActiveSmartTable } from '@/hooks/useActiveSmartTable';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import {
@@ -49,6 +50,18 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
         },
         immediatelyRender: false
     });
+
+    const { activeTable: detectedTable } = useActiveSmartTable();
+
+    // Deselect Smart Table when clicking in the editor content area (outside tables)
+    const handleEditorAreaClick = useCallback((e: React.MouseEvent) => {
+        // Check if the click target is inside a Smart Table node view
+        const target = e.target as HTMLElement;
+        const isInsideTable = target.closest('.code-block-wrapper');
+        if (!isInsideTable) {
+            window.dispatchEvent(new CustomEvent('smart-table-deselect'));
+        }
+    }, []);
 
     // Update content when initialContent changes
     useEffect(() => {
@@ -161,7 +174,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
                     Save
                 </Button>
             </div>
-            <div className="flex-1 overflow-auto p-4 relative">
+            <div className="flex-1 overflow-auto p-4 relative" onClick={handleEditorAreaClick}>
                 <EditorContent editor={editor} />
 
                 {/* Inline Slash Menu */}
@@ -177,6 +190,8 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
                 open={commandBarOpen}
                 onOpenChange={setCommandBarOpen}
                 initialCommand={slashCommand}
+                activeTableContent={detectedTable?.content ?? null}
+                activeTablePos={detectedTable?.pos ?? null}
             />
         </div>
     );

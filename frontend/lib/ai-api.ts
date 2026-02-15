@@ -17,11 +17,12 @@ export interface AICommandResponse {
     message: string;
 }
 
-export const sendAICommand = async (req: AICommandRequest): Promise<AICommandResponse> => {
+export const sendAICommand = async (req: AICommandRequest, signal?: AbortSignal): Promise<AICommandResponse> => {
     const res = await fetch(`${API_URL}/ai/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(req),
+        signal,
     });
 
     if (!res.ok) {
