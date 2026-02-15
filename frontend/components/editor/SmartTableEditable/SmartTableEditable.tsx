@@ -7,6 +7,7 @@ import {
     ContextMenuSeparator,
     ContextMenuTrigger
 } from "@/components/ui/context-menu";
+import type { SmartTableColumn } from '@/types/smart-table.types';
 import {
     AllCommunityModule,
     ColDef,
@@ -42,17 +43,101 @@ interface SmartTableEditableProps {
     onUpdate: (newContent: string) => void;
 }
 
+// ─── Build AG Grid ColDef from schema column ────────────────
+const buildColDef = (col: SmartTableColumn): ColDef => {
+    const base: ColDef = {
+        headerName: col.label,
+        field: col.key,
+        editable: col.type !== 'formula',
+        flex: 1,
+        minWidth: 100,
+    };
+
+    switch (col.type) {
+        case 'number':
+            return {
+                ...base,
+                cellDataType: 'number',
+                valueParser: (params) => {
+                    const val = Number(params.newValue);
+                    return isNaN(val) ? params.oldValue : val;
+                },
+            };
+
+        case 'currency':
+            return {
+                ...base,
+                cellDataType: 'number',
+                valueFormatter: (params) => {
+                    if (params.value == null || params.value === '') return '';
+                    const unit = col.unit || '€';
+                    return `${Number(params.value).toFixed(2)} ${unit}`;
+                },
+                valueParser: (params) => {
+                    const cleaned = String(params.newValue).replace(/[^\d.,\-]/g, '').replace(',', '.');
+                    const val = Number(cleaned);
+                    return isNaN(val) ? params.oldValue : val;
+                },
+            };
+
+        case 'percentage':
+            return {
+                ...base,
+                cellDataType: 'number',
+                valueFormatter: (params) => {
+                    if (params.value == null || params.value === '') return '';
+                    return `${(Number(params.value) * 100).toFixed(0)}%`;
+                },
+                valueParser: (params) => {
+                    let val = Number(String(params.newValue).replace('%', ''));
+                    if (isNaN(val)) return params.oldValue;
+                    // If user typed 20 (meaning 20%), convert to 0.20
+                    if (val > 1) val = val / 100;
+                    return val;
+                },
+            };
+
+        case 'select':
+            return {
+                ...base,
+                cellEditor: 'agSelectCellEditor',
+                cellEditorParams: {
+                    values: col.options || [],
+                },
+            };
+
+        case 'date':
+            return {
+                ...base,
+                // Simple text-based date for now
+            };
+
+        case 'formula':
+            return {
+                ...base,
+                editable: false,
+                cellStyle: { color: 'var(--muted-foreground)', fontStyle: 'italic' },
+                valueGetter: () => '(formule)',
+                headerTooltip: col.value ? `= ${col.value}` : undefined,
+            };
+
+        case 'text':
+        default:
+            return base;
+    }
+};
+
 export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content, onUpdate }) => {
     const {
-        localData,
-        mode,
+        schema,
+        data,
+        metadata,
         error,
         handleCellUpdate,
         addRow,
         deleteRow,
         addColumn,
         deleteColumn,
-        handleHeaderUpdate
     } = useSmartTable({ content, onUpdate });
 
     const gridRef = useRef<AgGridReact>(null);
@@ -63,64 +148,17 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
         index: number;
     } | null>(null);
 
-    // Calculate headers
-    const headers = useMemo(() => {
-        if (!localData || localData.length === 0) return [];
-        if (mode === 'arrays') {
-            return localData[0] as string[];
-        } else {
-            return Object.keys(localData[0]);
-        }
-    }, [localData, mode]);
-
-    // Build column definitions from headers
+    // Build column definitions from schema
     const columnDefs = useMemo<ColDef[]>(() => {
-        if (!headers || headers.length === 0) return [];
-
-        return headers.map((header: string, index: number) => ({
-            headerName: String(header),
-            field: mode === 'objects' ? String(header) : String(index),
-            editable: true,
-            flex: 1,
-            minWidth: 100,
-            valueGetter: mode === 'arrays'
-                ? (params: any) => params.data?.[index] ?? ''
-                : undefined,
-            valueSetter: mode === 'arrays'
-                ? (params: any) => {
-                    params.data[index] = params.newValue;
-                    return true;
-                }
-                : undefined,
-        }));
-    }, [headers, mode]);
-
-    // Convert data for AG Grid: for arrays mode, skip the header row
-    const rowData = useMemo(() => {
-        if (!localData || localData.length === 0) return [];
-        if (mode === 'arrays') {
-            return localData.slice(1);
-        }
-        return localData;
-    }, [localData, mode]);
+        if (!schema || schema.length === 0) return [];
+        return schema.map(buildColDef);
+    }, [schema]);
 
     // Handle cell value changes from AG Grid
     const onCellValueChanged = useCallback((event: CellValueChangedEvent) => {
-        const rowIndex = mode === 'arrays' ? event.rowIndex! + 1 : event.rowIndex!;
-        const columnId = event.colDef.field!;
-        handleCellUpdate(rowIndex, columnId, event.newValue);
-    }, [mode, handleCellUpdate]);
-
-    // Derived state for column count
-    const colCount = useMemo(() => {
-        if (mode === 'arrays' && localData.length > 0) {
-            return (localData[0] as string[]).length;
-        }
-        if (mode === 'objects' && localData.length > 0) {
-            return Object.keys(localData[0]).length;
-        }
-        return 0;
-    }, [localData, mode]);
+        const columnKey = event.colDef.field!;
+        handleCellUpdate(event.rowIndex!, columnKey, event.newValue);
+    }, [handleCellUpdate]);
 
     // Default column definition
     const defaultColDef = useMemo<ColDef>(() => ({
@@ -141,7 +179,7 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
         );
     }
 
-    if (!localData || localData.length === 0) {
+    if (!data || data.length === 0) {
         return <div className="text-gray-500 italic p-2 border rounded">Empty Table</div>;
     }
 
@@ -153,10 +191,20 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
         >
             <ContextMenuTrigger asChild>
                 <div className="rounded-md border my-4 overflow-hidden w-full">
+                    {/* Metadata title */}
+                    {metadata?.title && (
+                        <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/50 border-b truncate">
+                            {metadata.title}
+                            {metadata.last_ai_action && (
+                                <span className="ml-2 text-violet-500">✦ {metadata.last_ai_action}</span>
+                            )}
+                        </div>
+                    )}
+
                     <div style={{ width: '100%' }}>
                         <AgGridReact
                             ref={gridRef}
-                            rowData={rowData}
+                            rowData={data}
                             columnDefs={columnDefs}
                             defaultColDef={defaultColDef}
                             theme={smartTableTheme}
@@ -168,7 +216,7 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
                                 if (event.rowIndex !== null && event.rowIndex !== undefined) {
                                     setContextMenu({
                                         type: 'row',
-                                        index: mode === 'arrays' ? event.rowIndex + 1 : event.rowIndex,
+                                        index: event.rowIndex,
                                     });
                                 }
                             }}
@@ -177,8 +225,8 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
                     </div>
                     <div className="border-t">
                         <TableToolbar
-                            onAddRow={() => addRow(localData.length - 1, 'after')}
-                            onAddColumn={() => addColumn(colCount - 1, 'after')}
+                            onAddRow={() => addRow(data.length - 1, 'after')}
+                            onAddColumn={() => addColumn(schema.length - 1, 'after')}
                         />
                     </div>
                 </div>
@@ -194,8 +242,8 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
                 )}
                 {!contextMenu && (
                     <>
-                        <ContextMenuItem onClick={() => addRow(localData.length - 1, 'after')}>Add Row</ContextMenuItem>
-                        <ContextMenuItem onClick={() => addColumn(colCount - 1, 'after')}>Add Column</ContextMenuItem>
+                        <ContextMenuItem onClick={() => addRow(data.length - 1, 'after')}>Add Row</ContextMenuItem>
+                        <ContextMenuItem onClick={() => addColumn(schema.length - 1, 'after')}>Add Column</ContextMenuItem>
                     </>
                 )}
             </ContextMenuContent>

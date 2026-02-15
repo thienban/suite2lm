@@ -81,8 +81,17 @@ const TablePreview: React.FC<TablePreviewProps> = ({ json }) => {
     const parsed = useMemo(() => {
         try {
             const data = JSON.parse(json);
-            if (!Array.isArray(data) || data.length < 2) return null;
-            return { headers: data[0] as string[], rows: data.slice(1) as string[][] };
+
+            if (data && typeof data === 'object' && !Array.isArray(data) && Array.isArray(data.schema) && Array.isArray(data.data)) {
+                const headers = (data.schema as { label: string; key: string }[]).map(c => c.label);
+                const keys = (data.schema as { key: string }[]).map(c => c.key);
+                const rows = (data.data as Record<string, unknown>[]).map(row =>
+                    keys.map(k => String(row[k] ?? ''))
+                );
+                return { headers, rows, title: data.metadata?.title as string | undefined };
+            }
+
+            return null;
         } catch {
             return null;
         }
@@ -98,6 +107,9 @@ const TablePreview: React.FC<TablePreviewProps> = ({ json }) => {
 
     return (
         <div className="w-full">
+            {parsed.title && (
+                <div className="px-3 py-1 text-xs font-medium text-muted-foreground">{parsed.title}</div>
+            )}
             <table className="w-full text-sm">
                 <thead>
                     <tr className="border-b bg-muted/30">
@@ -183,11 +195,12 @@ export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChan
                 if (lang === 'json' || lang === 'smart-table') {
                     try {
                         const data = JSON.parse(node.textContent);
-                        if (Array.isArray(data) && data.length >= 1) {
-                            const headers = (data[0] as string[]).slice(0, 3).join(', ');
-                            const suffix = (data[0] as string[]).length > 3 ? '…' : '';
-                            const label = `${headers}${suffix} (${data.length - 1} lignes)`;
-                            tables.push({ label, content: node.textContent });
+
+                        // Structured format: { metadata, schema, data }
+                        if (data && typeof data === 'object' && !Array.isArray(data) && Array.isArray(data.schema)) {
+                            const title = data.metadata?.title || 'Tableau';
+                            const rowCount = Array.isArray(data.data) ? data.data.length : 0;
+                            tables.push({ label: `${title} (${rowCount} lignes)`, content: node.textContent });
                         }
                     } catch {
                         tables.push({ label: 'Tableau JSON', content: node.textContent });
@@ -444,8 +457,8 @@ export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChan
                             <button
                                 onClick={() => { setSelectedTable(null); setSelectedTablePos(null); setAutoDetected(false); setShowTablePicker(true); setAvailableTables(findDocumentTables()); }}
                                 className={`flex items-center gap-1 shrink-0 mr-2 px-2 py-0.5 rounded-md text-xs font-medium transition-colors max-w-[180px] ${autoDetected
-                                        ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800'
-                                        : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
+                                    ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800'
+                                    : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
                                     }`}
                             >
                                 <Table className="size-3 shrink-0" />
@@ -454,7 +467,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({ editor, open, onOpenChan
                                     {(() => {
                                         try {
                                             const d = JSON.parse(selectedTable);
-                                            return (d[0] as string[]).slice(0, 2).join(', ') + ((d[0] as string[]).length > 2 ? '…' : '');
+                                            return d?.metadata?.title || 'Tableau';
                                         } catch { return 'Tableau'; }
                                     })()}
                                 </span>

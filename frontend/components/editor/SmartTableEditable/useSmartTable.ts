@@ -1,36 +1,27 @@
+import {
+    type SmartTableColumn,
+    type SmartTableDocument,
+    type SmartTableMetadata,
+    isSmartTableDocument,
+} from '@/types/smart-table.types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Helper to determine if JSON is array of arrays or array of objects
-const parseData = (content: string) => {
+// ─── Parse content string into a SmartTableDocument ─────────
+const parseContent = (content: string): { doc?: SmartTableDocument; error?: string } => {
     try {
         const json = JSON.parse(content);
-        let data = json;
-        let wrapper = null;
 
-        // Support Wrapper format { id: "...", data: [...] }
-        if (!Array.isArray(json) && typeof json === 'object' && json !== null && Array.isArray(json.data)) {
-            data = json.data;
-            wrapper = { ...json }; // Clone to preserve other keys
+        if (isSmartTableDocument(json)) {
+            return { doc: json };
         }
 
-        if (!Array.isArray(data)) return { error: "Root or .data must be an array" };
-        if (data.length === 0) return { data: [], wrapper };
-
-        // Mode 1: Array of Arrays [ ["Name", "Age"], ["Alice", 30] ]
-        if (Array.isArray(data[0])) {
-            return { mode: 'arrays', data, wrapper };
-        }
-
-        // Mode 2: Array of Objects [ { "Name": "Alice", "Age": 30 } ]
-        if (typeof data[0] === 'object') {
-            return { mode: 'objects', data, wrapper };
-        }
-
-        return { error: "Unknown array format", wrapper };
+        return { error: 'Format invalide : le JSON doit contenir metadata, schema et data.' };
     } catch (e) {
         return { error: (e as Error).message };
     }
 };
+
+// ─── Hook ───────────────────────────────────────────────────
 
 interface UseSmartTableProps {
     content: string;
@@ -38,173 +29,160 @@ interface UseSmartTableProps {
 }
 
 export const useSmartTable = ({ content, onUpdate }: UseSmartTableProps) => {
-    const [localData, setLocalData] = useState<any[]>([]);
-    const [wrapper, setWrapper] = useState<any>(null);
-    const [mode, setMode] = useState<'arrays' | 'objects'>('arrays');
+    const [doc, setDoc] = useState<SmartTableDocument | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    // Ref to access current data in handlers without forcing re-creation
-    const dataRef = useRef<any[]>(localData);
-    const wrapperRef = useRef<any>(wrapper);
+    const docRef = useRef<SmartTableDocument | null>(doc);
 
-    // Initialize state from content
+    // ── Initialize from content ──
     useEffect(() => {
-        const result = parseData(content);
+        const result = parseContent(content);
         if (result.error) {
             setError(result.error);
-        } else {
+        } else if (result.doc) {
             setError(null);
-
-            // Optimization: Avoid resetting localData if it effectively matches the new content
-            const currentString = JSON.stringify(result.data);
-            const localString = JSON.stringify(localData);
-
-            if (currentString !== localString) {
-                setLocalData(result.data!);
-                setMode(result.mode as any);
-                setWrapper(result.wrapper);
-                dataRef.current = result.data!;
-                wrapperRef.current = result.wrapper;
+            const newStr = JSON.stringify(result.doc);
+            const curStr = JSON.stringify(docRef.current);
+            if (newStr !== curStr) {
+                setDoc(result.doc);
+                docRef.current = result.doc;
             }
         }
-    }, [content, localData]);
+    }, [content]);
 
-    // Update ref when localData changes
+    // Keep ref in sync
     useEffect(() => {
-        dataRef.current = localData;
-    }, [localData]);
-    useEffect(() => {
-        wrapperRef.current = wrapper;
-    }, [wrapper]);
+        docRef.current = doc;
+    }, [doc]);
 
-    const updateParent = useCallback((newData: any[]) => {
-        let jsonToSave = newData;
-        if (wrapperRef.current) {
-            jsonToSave = { ...wrapperRef.current, data: newData };
-        }
-        const jsonString = JSON.stringify(jsonToSave, null, 2);
+    // ── Serialize and push to editor ──
+    const updateParent = useCallback((updatedDoc: SmartTableDocument) => {
+        const jsonString = JSON.stringify(updatedDoc, null, 2);
         onUpdate(jsonString);
     }, [onUpdate]);
 
-    const handleCellUpdate = useCallback((rowIndex: number, columnId: string, value: any) => {
-        const currentData = dataRef.current;
-        const newData = [...currentData];
-
-        if (mode === 'arrays') {
-            const colIndex = parseInt(columnId);
-            const newRow = [...newData[rowIndex]];
-            newRow[colIndex] = value;
-            newData[rowIndex] = newRow;
-        } else {
-            newData[rowIndex] = { ...newData[rowIndex], [columnId]: value };
-        }
-
-        setLocalData(newData);
-        dataRef.current = newData;
-        updateParent(newData);
-    }, [mode, updateParent]);
-
-    const addRow = useCallback((index: number, where: 'before' | 'after') => {
-        const currentData = dataRef.current;
-        const newData = [...currentData];
-        const insertIndex = where === 'before' ? index : index + 1;
-
-        let newRow: any;
-        if (mode === 'arrays') {
-            const colCount = currentData.length > 0 ? currentData[0].length : 0;
-            newRow = new Array(colCount).fill("");
-        } else {
-            const keys = Object.keys(currentData[0]);
-            newRow = {};
-            keys.forEach(k => newRow[k] = "");
-        }
-
-        newData.splice(insertIndex, 0, newRow);
-        setLocalData(newData);
-        updateParent(newData);
-    }, [mode, updateParent]);
-
-    const deleteRow = useCallback((index: number) => {
-        const currentData = dataRef.current;
-        const newData = [...currentData];
-        newData.splice(index, 1);
-        setLocalData(newData);
-        updateParent(newData);
+    // ── Convenience: update just the data rows ──
+    const updateData = useCallback((newData: Record<string, unknown>[]) => {
+        const current = docRef.current;
+        if (!current) return;
+        const updated = { ...current, data: newData };
+        setDoc(updated);
+        docRef.current = updated;
+        updateParent(updated);
     }, [updateParent]);
 
-    const addColumn = useCallback((colIndex: number, where: 'before' | 'after') => {
-        const currentData = dataRef.current;
+    // ── Cell update ──
+    const handleCellUpdate = useCallback((rowIndex: number, columnKey: string, value: unknown) => {
+        const current = docRef.current;
+        if (!current) return;
+        const newData = [...current.data];
+        newData[rowIndex] = { ...newData[rowIndex], [columnKey]: value };
+        updateData(newData);
+    }, [updateData]);
 
-        if (mode === 'arrays') {
-            const newData = currentData.map(row => {
-                const newRow = [...row];
-                const insertIndex = where === 'before' ? colIndex : colIndex + 1;
-                newRow.splice(insertIndex, 0, "");
-                return newRow;
-            });
-            setLocalData(newData);
-            updateParent(newData);
-        } else {
-            // Objects mode: prompt for column name
-            const colName = prompt("New column name:");
-            if (!colName || colName.trim() === '') return;
-            const key = colName.trim();
-            const newData = currentData.map(row => ({ ...row, [key]: "" }));
-            setLocalData(newData);
-            updateParent(newData);
-        }
-    }, [mode, updateParent]);
+    // ── Row operations ──
+    const addRow = useCallback((index: number, where: 'before' | 'after') => {
+        const current = docRef.current;
+        if (!current) return;
+        const newData = [...current.data];
+        const insertIndex = where === 'before' ? index : index + 1;
+
+        // Create empty row from schema
+        const newRow: Record<string, unknown> = {};
+        current.schema.forEach(col => {
+            newRow[col.key] = col.default ?? '';
+        });
+
+        newData.splice(insertIndex, 0, newRow);
+        updateData(newData);
+    }, [updateData]);
+
+    const deleteRow = useCallback((index: number) => {
+        const current = docRef.current;
+        if (!current) return;
+        const newData = [...current.data];
+        newData.splice(index, 1);
+        updateData(newData);
+    }, [updateData]);
+
+    // ── Column operations ──
+    const addColumn = useCallback((colIndex: number, where: 'before' | 'after') => {
+        const current = docRef.current;
+        if (!current) return;
+
+        const colName = prompt('Nom de la colonne :');
+        if (!colName || colName.trim() === '') return;
+
+        const key = colName.trim().toLowerCase().replace(/\s+/g, '_');
+        const newCol: SmartTableColumn = { key, label: colName.trim(), type: 'text' };
+
+        const newSchema = [...current.schema];
+        const insertIndex = where === 'before' ? colIndex : colIndex + 1;
+        newSchema.splice(insertIndex, 0, newCol);
+
+        const newData = current.data.map(row => ({ ...row, [key]: '' }));
+
+        const updated = { ...current, schema: newSchema, data: newData };
+        setDoc(updated);
+        docRef.current = updated;
+        updateParent(updated);
+    }, [updateParent]);
 
     const deleteColumn = useCallback((colIndex: number) => {
-        const currentData = dataRef.current;
+        const current = docRef.current;
+        if (!current) return;
+        if (colIndex < 0 || colIndex >= current.schema.length) return;
 
-        if (mode === 'arrays') {
-            const newData = currentData.map(row => {
-                const newRow = [...row];
-                newRow.splice(colIndex, 1);
-                return newRow;
-            });
-            setLocalData(newData);
-            updateParent(newData);
-        } else {
-            // Objects mode: resolve key name from index and remove it
-            if (currentData.length === 0) return;
-            const keys = Object.keys(currentData[0]);
-            const keyToDelete = keys[colIndex];
-            if (!keyToDelete) return;
-            const newData = currentData.map(row => {
-                const { [keyToDelete]: _, ...rest } = row;
-                return rest;
-            });
-            setLocalData(newData);
-            updateParent(newData);
-        }
-    }, [mode, updateParent]);
+        const keyToDelete = current.schema[colIndex].key;
+        const newSchema = current.schema.filter((_, i) => i !== colIndex);
+        const newData = current.data.map(row => {
+            const { [keyToDelete]: _, ...rest } = row;
+            return rest;
+        });
 
-    const handleHeaderUpdate = useCallback((index: number, value: string) => {
-        const currentData = dataRef.current;
-        if (mode === 'arrays' && currentData.length > 0) {
-            const newData = [...currentData];
-            const newHeaderRow = [...newData[0]];
-            newHeaderRow[index] = value;
-            newData[0] = newHeaderRow;
+        const updated = { ...current, schema: newSchema, data: newData };
+        setDoc(updated);
+        docRef.current = updated;
+        updateParent(updated);
+    }, [updateParent]);
 
-            setLocalData(newData);
-            dataRef.current = newData;
-            updateParent(newData);
-        }
-    }, [mode, updateParent]);
+    // ── Header (label) update ──
+    const handleHeaderUpdate = useCallback((colIndex: number, newLabel: string) => {
+        const current = docRef.current;
+        if (!current) return;
+
+        const newSchema = [...current.schema];
+        newSchema[colIndex] = { ...newSchema[colIndex], label: newLabel };
+
+        const updated = { ...current, schema: newSchema };
+        setDoc(updated);
+        docRef.current = updated;
+        updateParent(updated);
+    }, [updateParent]);
+
+    // ── Metadata update ──
+    const updateMetadata = useCallback((updates: Partial<SmartTableMetadata>) => {
+        const current = docRef.current;
+        if (!current) return;
+
+        const updated = { ...current, metadata: { ...current.metadata, ...updates } };
+        setDoc(updated);
+        docRef.current = updated;
+        updateParent(updated);
+    }, [updateParent]);
 
     return {
-        localData,
-        mode,
+        doc,
+        metadata: doc?.metadata ?? null,
+        schema: doc?.schema ?? [],
+        data: doc?.data ?? [],
         error,
-        dataRef,
         handleCellUpdate,
         addRow,
         deleteRow,
         addColumn,
         deleteColumn,
-        handleHeaderUpdate
+        handleHeaderUpdate,
+        updateMetadata,
     };
 };

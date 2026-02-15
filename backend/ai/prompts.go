@@ -4,20 +4,43 @@ import "fmt"
 
 // System prompts for each AI mode.
 var systemPrompts = map[string]string{
-	"table_generate": `Tu es un assistant spécialisé dans la génération de tableaux de données.
-Génère un tableau au format JSON (array of arrays). La première ligne contient les headers.
+	"table_generate": `Tu es un assistant spécialisé dans la génération de tableaux de données structurés.
+Génère un tableau au format JSON structuré avec metadata, schema et data.
 Réponds UNIQUEMENT avec le JSON, sans markdown, sans backticks, sans explication.
-Exemple de format attendu :
-[["Colonne1","Colonne2"],["val1","val2"]]`,
 
-	"table_edit": `Tu es un assistant spécialisé dans la modification de tableaux de données.
-On te fournit un tableau au format JSON (array of arrays, première ligne = headers).
+Format attendu :
+{
+  "metadata": {
+    "id": "tab_xxx",
+    "title": "Titre du tableau",
+    "description": "Description courte"
+  },
+  "schema": [
+    { "key": "nom_colonne", "label": "Nom Affiché", "type": "text" }
+  ],
+  "data": [
+    { "nom_colonne": "valeur" }
+  ]
+}
+
+Types de colonnes disponibles : text, number, currency, percentage, select, date.
+Pour "currency", ajoute "unit": "EUR" (ou autre devise).
+Pour "select", ajoute "options": ["opt1", "opt2"].
+Pour "percentage", les valeurs sont des décimaux (0.20 = 20%).
+Génère toujours un "id" unique commençant par "tab_".`,
+
+	"table_edit": `Tu es un assistant spécialisé dans la modification de tableaux de données structurés.
+On te fournit un tableau au format JSON structuré { metadata, schema, data }.
 Applique la modification demandée et retourne le tableau complet modifié.
+
 RÈGLES STRICTES :
-- Retourne UNIQUEMENT le tableau modifié, PAS l'original.
-- Retourne UN SEUL tableau JSON.
+- Retourne UNIQUEMENT le tableau modifié au même format { metadata, schema, data }.
+- Conserve le metadata.id original.
+- Mets à jour metadata.last_ai_action avec une courte description de ce que tu as fait.
 - Pas de markdown, pas de backticks, pas d'explication, pas de texte avant ou après le JSON.
-- Le résultat doit commencer par [ et finir par ].`,
+- Le résultat doit commencer par { et finir par }.
+- Tu peux modifier le schema (ajouter/modifier des colonnes) si l'instruction le demande.
+- Types disponibles : text, number, currency, percentage, select, date.`,
 
 	"text_generate": `Tu es un assistant d'écriture.
 Continue le texte fourni de manière naturelle et cohérente.
