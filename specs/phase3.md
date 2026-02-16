@@ -176,41 +176,45 @@ Le backend construira des system prompts adaptés au mode :
 ## 4. Étapes d'Implémentation
 
 ### Étape 1 : Backend IA — Service LLM
-*   [ ] Créer le module `backend/ai/` avec un service générique d'appel LLM.
-*   [ ] Implémenter le support multi-provider (OpenAI, Gemini) via interface Go.
-*   [ ] Ajouter l'endpoint `POST /api/ai/command`.
-*   [ ] Gérer la configuration via `.env` (`LLM_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL`).
+*   [x] Créer le module `backend/ai/` avec un service générique d'appel LLM.
+*   [x] Implémenter le support multi-provider (OpenAI, Gemini) via interface Go.
+*   [x] Ajouter l'endpoint `POST /api/ai/command`.
+*   [x] Gérer la configuration via `.env` (`LLM_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL`).
 
 ### Étape 2 : Frontend — Command Bar (`Cmd+K`)
-*   [ ] Installer `cmdk` et créer le composant `CommandBar.tsx`.
-*   [ ] Intégrer le raccourci `Cmd+K` / `Ctrl+K` dans l'éditeur.
-*   [ ] Créer le hook `useAICommand.ts` pour appeler le backend.
-*   [ ] Afficher un preview du résultat IA avant insertion dans le document.
+*   [x] Installer `cmdk` et créer le composant `CommandBar.tsx`.
+*   [x] Intégrer le raccourci `Cmd+K` / `Ctrl+K` dans l'éditeur.
+*   [x] Créer le hook `useAICommand.ts` pour appeler le backend.
+*   [x] Afficher un preview du résultat IA avant insertion dans le document.
 
 ### Étape 3 : Slash Menu dans TipTap
-*   [ ] Créer l'extension TipTap `SlashMenu` qui détecte `/` en début de bloc.
-*   [ ] Afficher un menu avec les commandes prédéfinies (`/tableau`, `/résumer`, etc.).
-*   [ ] Connecter chaque commande au hook `useAICommand`.
+*   [x] Créer l'extension TipTap `SlashMenu` qui détecte `/` en début de bloc.
+*   [x] Afficher un menu avec les commandes prédéfinies (`/tableau`, `/résumer`, etc.).
+*   [x] Connecter chaque commande au hook `useAICommand`.
 
 ### Étape 4 : Manipulation IA des Smart Tables
-*   [ ] Détecter quand le curseur est dans/adjacent à une Smart Table.
-*   [ ] Passer le contenu JSON du tableau comme contexte à la commande IA.
-*   [ ] Appliquer le résultat IA (nouveau JSON) directement dans le noeud TipTap.
-*   [ ] Gérer les cas d'erreur (JSON invalide retourné, timeout).
+*   [X] Selection du tableau
+*   [X] Passer le contenu JSON du tableau comme contexte à la commande IA.
+*   [X] Appliquer le résultat IA (nouveau JSON) directement dans le noeud TipTap.
+*   [X] Gérer les cas d'erreur (JSON invalide retourné, timeout).
 
-### Étape 5 : Ghostwriting (Autocomplétion IA)
-*   [ ] Ajouter l'endpoint SSE `GET /api/ai/suggest` au backend.
-*   [ ] Créer le hook `useGhostwrite.ts` avec gestion SSE.
-*   [ ] Créer l'extension TipTap `GhostWriter` avec `Decorations` pour le texte fantôme.
-*   [ ] Implémenter `Tab` pour accepter, `Escape` pour rejeter.
+### Étape 5: Structure des données
+Revoir la structure des données pour les Smart Tables
+metadata, schema, data. Voir workspace/welcome.md
+*   [X] Backend
+*   [X] Frontend
 
-### Étape 6 : Refactorisation de Texte
-*   [ ] Détecter la sélection de texte dans l'éditeur.
-*   [ ] Passer le texte sélectionné via `Cmd+K` avec mode `text_refactor`.
-*   [ ] Remplacer la sélection par le résultat IA.
-*   [ ] S'assurer que l'undo TipTap (`Cmd+Z`) fonctionne correctement.
+### Étape 6: Colonnes à formules
+Implémenter un moteur d'évaluation de formules pour les colonnes de type `formula` dans les Smart Tables.
+*   [x] Parser les expressions de formules (ex: `amount_ht * (1 + tax_rate)`)
+*   [x] Évaluer les formules en temps réel lors de modifications de cellules
+*   [x] Affichage en lecture seule des colonnes calculées dans AG Grid
+*   [x] Gestion des erreurs de formules (référence circulaire, division par zéro)
+*   [x] Formule modifiable par l'utilisateur
+*   [x] Aide à la saisie de formule (liste des colonnes disponibles)
+*   [] Ajouter une colonne de type formule. Il peut saisir une formule comme `=A1+B1`.
 
----
+----------------------------------
 
 ## 5. Sécurité & Configuration
 
@@ -219,7 +223,9 @@ Le backend construira des system prompts adaptés au mode :
 *   **Validation :** Le backend valide que le JSON retourné par l'IA est syntaxiquement correct avant de le renvoyer au frontend.
 *   **Fallback :** Si l'appel LLM échoue, retourner un message d'erreur clair sans casser l'éditeur.
 
----
+### Étape 5: Structure des données
+
+-------------------------------------
 
 ## 6. Critères de Validation (Phase 3)
 
@@ -229,3 +235,17 @@ Le backend construira des system prompts adaptés au mode :
 4.  Le slash menu (`/`) propose des commandes prédéfinies et les exécute.
 5.  Le texte sélectionné peut être refactorisé par l'IA via `Cmd+K`.
 6.  Les appels IA échoués n'impactent pas la stabilité de l'éditeur.
+
+## Options en Backlog
+
+### Ghostwriting (Autocomplétion IA)
+*   [ ] Ajouter l'endpoint SSE `GET /api/ai/suggest` au backend.
+*   [ ] Créer le hook `useGhostwrite.ts` avec gestion SSE.
+*   [ ] Créer l'extension TipTap `GhostWriter` avec `Decorations` pour le texte fantôme.
+*   [ ] Implémenter `Tab` pour accepter, `Escape` pour rejeter.
+
+### Refactorisation de Texte
+*   [ ] Détecter la sélection de texte dans l'éditeur.
+*   [ ] Passer le texte sélectionné via `Cmd+K` avec mode `text_refactor`.
+*   [ ] Remplacer la sélection par le résultat IA.
+*   [ ] S'assurer que l'undo TipTap (`Cmd+Z`) fonctionne correctement.

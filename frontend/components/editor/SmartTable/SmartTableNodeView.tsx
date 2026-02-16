@@ -89,8 +89,8 @@ export const SmartTableNodeView = ({ node, updateAttributes, extension, editor, 
                 isPreview && isSmartTable ? (
                     <div
                         className={`bg-white dark:bg-black rounded-md transition-all cursor-pointer ${isSelected
-                                ? 'ring-2 ring-violet-500 ring-offset-1'
-                                : 'hover:ring-1 hover:ring-violet-300'
+                            ? 'ring-2 ring-violet-500 ring-offset-1'
+                            : 'hover:ring-1 hover:ring-violet-300'
                             }`}
                         contentEditable={false}
                         onClick={handleTableClick}

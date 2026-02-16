@@ -19,6 +19,7 @@ import {
 import { AgGridReact } from 'ag-grid-react';
 import { AlertCircle } from 'lucide-react';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { ColumnDialog } from './ColumnDialog';
 import { FormulaBar } from './FormulaBar';
 import { TableToolbar } from './TableToolbar';
 import { useSmartTable } from './useSmartTable';
@@ -150,6 +151,7 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
 
     const gridRef = useRef<AgGridReact>(null);
     const [focusedColKey, setFocusedColKey] = useState<string | null>(null);
+    const [isAddColumnDialogOpen, setIsAddColumnDialogOpen] = useState(false);
 
     // Get currently focused column schema
     const focusedColumn = useMemo(() =>
@@ -187,94 +189,144 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
         suppressMovable: true,
     }), []);
 
-    if (error) {
-        return (
-            <div className="relative w-full rounded-lg border border-destructive/50 p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-destructive text-destructive dark:border-destructive">
-                <AlertCircle className="h-4 w-4" />
-                <h5 className="mb-1 font-medium leading-none tracking-tight">JSON Error</h5>
-                <div className="text-sm [&_p]:leading-relaxed">{error}</div>
-            </div>
-        );
-    }
+    const renderContent = () => {
+        if (error) {
+            return (
+                <div className="relative w-full rounded-lg border border-destructive/50 p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-destructive text-destructive dark:border-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <h5 className="mb-1 font-medium leading-none tracking-tight">JSON Error</h5>
+                    <div className="text-sm [&_p]:leading-relaxed">{error}</div>
+                </div>
+            );
+        }
 
-    if (!data || data.length === 0) {
-        return <div className="text-gray-500 italic p-2 border rounded">Empty Table</div>;
-    }
-
-    return (
-        <ContextMenu
-            onOpenChange={(open) => {
-                if (!open) setContextMenu(null);
-            }}
-        >
-            <ContextMenuTrigger asChild>
+        if (!data || data.length === 0) {
+            return (
                 <div className="rounded-md border my-4 overflow-hidden w-full">
-                    {/* Metadata title */}
                     {metadata?.title && (
                         <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/50 border-b truncate">
                             {metadata.title}
-                            {metadata.last_ai_action && (
-                                <span className="ml-2 text-violet-500">✦ {metadata.last_ai_action}</span>
-                            )}
                         </div>
                     )}
-
-                    {/* Formula Bar */}
-                    <div className="bg-background">
-                        <FormulaBar
-                            column={focusedColumn}
-                            schema={schema}
-                            onUpdate={(expr) => focusedColKey && updateColumn(focusedColKey, { expression: expr })}
-                        />
-                    </div>
-
-                    <div style={{ width: '100%' }}>
-                        <AgGridReact
-                            ref={gridRef}
-                            rowData={computedData}
-                            columnDefs={columnDefs}
-                            defaultColDef={defaultColDef}
-                            theme={smartTableTheme}
-                            domLayout="autoHeight"
-                            onCellValueChanged={onCellValueChanged}
-                            onCellFocused={handleCellFocused}
-                            singleClickEdit={true}
-                            stopEditingWhenCellsLoseFocus={true}
-                            onCellContextMenu={(event) => {
-                                if (event.rowIndex !== null && event.rowIndex !== undefined) {
-                                    setContextMenu({
-                                        type: 'row',
-                                        index: event.rowIndex,
-                                    });
-                                }
-                            }}
-                            suppressContextMenu={true}
-                        />
+                    <div className="p-8 text-center text-muted-foreground italic">
+                        Table vide. Ajoutez une colonne ou une ligne pour commencer.
                     </div>
                     <div className="border-t">
                         <TableToolbar
-                            onAddRow={() => addRow(data.length - 1, 'after')}
-                            onAddColumn={() => addColumn(schema.length - 1, 'after')}
+                            onAddRow={() => addRow(0, 'after')}
+                            onAddColumnClick={() => setIsAddColumnDialogOpen(true)}
                         />
                     </div>
                 </div>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-                {contextMenu?.type === 'row' && (
-                    <>
-                        <ContextMenuItem onClick={() => addRow(contextMenu.index, 'before')}>Add Row Above</ContextMenuItem>
-                        <ContextMenuItem onClick={() => addRow(contextMenu.index, 'after')}>Add Row Below</ContextMenuItem>
-                        <ContextMenuSeparator />
-                        <ContextMenuItem onClick={() => deleteRow(contextMenu.index)} className="text-destructive">Delete Row</ContextMenuItem>
-                    </>
+            );
+        }
+
+        return (
+            <div className="rounded-md border my-4 overflow-hidden w-full">
+                {/* Metadata title */}
+                {metadata?.title && (
+                    <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/50 border-b truncate">
+                        {metadata.title}
+                        {metadata.last_ai_action && (
+                            <span className="ml-2 text-violet-500">✦ {metadata.last_ai_action}</span>
+                        )}
+                    </div>
                 )}
-                {!contextMenu && (
-                    <>
-                        <ContextMenuItem onClick={() => addRow(data.length - 1, 'after')}>Add Row</ContextMenuItem>
-                        <ContextMenuItem onClick={() => addColumn(schema.length - 1, 'after')}>Add Column</ContextMenuItem>
-                    </>
-                )}
-            </ContextMenuContent>
-        </ContextMenu>
+
+                {/* Formula Bar */}
+                <div className="bg-background">
+                    <FormulaBar
+                        column={focusedColumn}
+                        schema={schema}
+                        onExpressionChange={(expr) => focusedColKey && updateColumn(focusedColKey, { expression: expr })}
+                        onRename={() => {
+                            const newName = prompt('Nouveau nom :', focusedColumn?.label);
+                            if (newName && focusedColumn) {
+                                const idx = schema.findIndex(c => c.key === focusedColumn.key);
+                                if (idx !== -1) updateColumn(focusedColumn.key, { label: newName, key: newName.toLowerCase().replace(/[^a-z0-9]/g, '_') });
+                            }
+                        }}
+                        onTypeChange={(type) => focusedColKey && updateColumn(focusedColKey, { type })}
+                        onDelete={() => {
+                            if (focusedColumn && confirm('Supprimer cette colonne ?')) {
+                                const idx = schema.findIndex(c => c.key === focusedColumn.key);
+                                if (idx !== -1) deleteColumn(idx);
+                            }
+                        }}
+                    />
+                </div>
+
+                <ContextMenu
+                    onOpenChange={(open) => {
+                        if (!open) setContextMenu(null);
+                    }}
+                >
+                    <ContextMenuTrigger asChild>
+                        <div style={{ width: '100%' }}>
+                            <AgGridReact
+                                ref={gridRef}
+                                rowData={computedData}
+                                columnDefs={columnDefs}
+                                defaultColDef={defaultColDef}
+                                theme={smartTableTheme}
+                                domLayout="autoHeight"
+                                onCellValueChanged={onCellValueChanged}
+                                onCellFocused={handleCellFocused}
+                                singleClickEdit={true}
+                                stopEditingWhenCellsLoseFocus={true}
+                                onCellContextMenu={(event) => {
+                                    if (event.rowIndex !== null && event.rowIndex !== undefined) {
+                                        setContextMenu({
+                                            type: 'row',
+                                            index: event.rowIndex,
+                                        });
+                                    }
+                                }}
+                                suppressContextMenu={true}
+                            />
+                        </div>
+                    </ContextMenuTrigger>
+
+                    <ContextMenuContent>
+                        {contextMenu?.type === 'row' && (
+                            <>
+                                <ContextMenuItem onClick={() => addRow(contextMenu.index, 'before')}>Add Row Above</ContextMenuItem>
+                                <ContextMenuItem onClick={() => addRow(contextMenu.index, 'after')}>Add Row Below</ContextMenuItem>
+                                <ContextMenuSeparator />
+                                <ContextMenuItem onClick={() => deleteRow(contextMenu.index)} className="text-destructive">Delete Row</ContextMenuItem>
+                            </>
+                        )}
+                        {!contextMenu && (
+                            <>
+                                <ContextMenuItem onClick={() => addRow(data.length - 1, 'after')}>Add Row</ContextMenuItem>
+                                <ContextMenuItem onClick={() => setIsAddColumnDialogOpen(true)}>Add Column</ContextMenuItem>
+                            </>
+                        )}
+                    </ContextMenuContent>
+                </ContextMenu>
+
+                <div className="border-t">
+                    <TableToolbar
+                        onAddRow={() => addRow(data.length - 1, 'after')}
+                        onAddColumnClick={() => setIsAddColumnDialogOpen(true)}
+                    />
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <>
+            {renderContent()}
+
+            <ColumnDialog
+                open={isAddColumnDialogOpen}
+                onOpenChange={setIsAddColumnDialogOpen}
+                onSave={(name, type) => {
+                    addColumn(schema.length - 1, 'after', name, type);
+                    setIsAddColumnDialogOpen(false);
+                }}
+            />
+        </>
     );
 };

@@ -1,8 +1,9 @@
 import {
+    type ColumnType,
+    isSmartTableDocument,
     type SmartTableColumn,
     type SmartTableDocument,
     type SmartTableMetadata,
-    isSmartTableDocument,
 } from '@/types/smart-table.types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -106,21 +107,38 @@ export const useSmartTable = ({ content, onUpdate }: UseSmartTableProps) => {
     }, [updateData]);
 
     // ── Column operations ──
-    const addColumn = useCallback((colIndex: number, where: 'before' | 'after') => {
+    const addColumn = useCallback((colIndex: number, where: 'before' | 'after', name: string, type: ColumnType = 'text') => {
         const current = docRef.current;
         if (!current) return;
 
-        const colName = prompt('Nom de la colonne :');
-        if (!colName || colName.trim() === '') return;
+        // Generate safe key
+        let key = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        if (!key) key = `col_${Date.now()}`;
 
-        const key = colName.trim().toLowerCase().replace(/\s+/g, '_');
-        const newCol: SmartTableColumn = { key, label: colName.trim(), type: 'text' };
+        // Ensure uniqueness
+        let counter = 1;
+        const baseKey = key;
+        while (current.schema.some(c => c.key === key)) {
+            key = `${baseKey}_${counter}`;
+            counter++;
+        }
+
+        const newCol: SmartTableColumn = { key, label: name, type };
+
+        // Initialize default value based on type
+        // Formula columns get null (computed), others get empty/zero
+        const defaultValue = type === 'formula' ? null : (
+            type === 'number' || type === 'currency' || type === 'percentage' ? 0 : ''
+        );
 
         const newSchema = [...current.schema];
         const insertIndex = where === 'before' ? colIndex : colIndex + 1;
         newSchema.splice(insertIndex, 0, newCol);
 
-        const newData = current.data.map(row => ({ ...row, [key]: '' }));
+        const newData = current.data.map(row => ({
+            ...row,
+            [key]: defaultValue
+        }));
 
         const updated = { ...current, schema: newSchema, data: newData };
         setDoc(updated);
