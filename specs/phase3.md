@@ -212,7 +212,8 @@ Implémenter un moteur d'évaluation de formules pour les colonnes de type `form
 *   [x] Gestion des erreurs de formules (référence circulaire, division par zéro)
 *   [x] Formule modifiable par l'utilisateur
 *   [x] Aide à la saisie de formule (liste des colonnes disponibles)
-*   [] Ajouter une colonne de type formule. Il peut saisir une formule comme `=A1+B1`.
+*   [X] Ajouter une colonne de type formule. Il peut saisir une formule comme `=A1+B1`.
+*   [X] Ajouter une colonne de type selection. Les options sont définies par l'utilisateur.
 
 ----------------------------------
 

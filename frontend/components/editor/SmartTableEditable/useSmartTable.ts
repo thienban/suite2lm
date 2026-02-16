@@ -107,7 +107,7 @@ export const useSmartTable = ({ content, onUpdate }: UseSmartTableProps) => {
     }, [updateData]);
 
     // ── Column operations ──
-    const addColumn = useCallback((colIndex: number, where: 'before' | 'after', name: string, type: ColumnType = 'text') => {
+    const addColumn = useCallback((colIndex: number, where: 'before' | 'after', name: string, type: ColumnType = 'text', options?: string[]) => {
         const current = docRef.current;
         if (!current) return;
 
@@ -123,7 +123,7 @@ export const useSmartTable = ({ content, onUpdate }: UseSmartTableProps) => {
             counter++;
         }
 
-        const newCol: SmartTableColumn = { key, label: name, type };
+        const newCol: SmartTableColumn = { key, label: name, type, options };
 
         // Initialize default value based on type
         // Formula columns get null (computed), others get empty/zero

@@ -13,13 +13,14 @@ import {
 } from '@/components/ui/custom-select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import type { ColumnType } from '@/types/smart-table.types';
 import React, { useState } from 'react';
 
 interface ColumnDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSave: (name: string, type: ColumnType) => void;
+    onSave: (name: string, type: ColumnType, options?: string[]) => void;
 }
 
 const COLUMN_TYPES: { value: ColumnType; label: string }[] = [
@@ -39,12 +40,23 @@ export const ColumnDialog: React.FC<ColumnDialogProps> = ({
 }) => {
     const [name, setName] = useState('');
     const [type, setType] = useState<ColumnType>('text');
+    const [optionsStr, setOptionsStr] = useState('');
 
     const handleSave = () => {
         if (!name.trim()) return;
-        onSave(name, type);
+
+        let options: string[] | undefined;
+        if (type === 'select') {
+            options = optionsStr
+                .split('\n')
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+        }
+
+        onSave(name, type, options);
         setName('');
         setType('text');
+        setOptionsStr('');
         onOpenChange(false);
     };
 
@@ -84,6 +96,26 @@ export const ColumnDialog: React.FC<ColumnDialogProps> = ({
                             ))}
                         </CustomSelect>
                     </div>
+
+                    {type === 'select' && (
+                        <div className="grid grid-cols-4 items-start gap-4">
+                            <Label htmlFor="options" className="text-right pt-2">
+                                Options
+                            </Label>
+                            <div className="col-span-3">
+                                <Textarea
+                                    id="options"
+                                    value={optionsStr}
+                                    onChange={(e) => setOptionsStr(e.target.value)}
+                                    placeholder="Une option par ligne..."
+                                    className="min-h-[100px]"
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Saisissez une option par ligne.
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <CustomDialogFooter>
                     <CustomDialogClose onClick={() => onOpenChange(false)}>

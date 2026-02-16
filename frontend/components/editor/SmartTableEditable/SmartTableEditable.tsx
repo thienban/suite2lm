@@ -322,8 +322,8 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
             <ColumnDialog
                 open={isAddColumnDialogOpen}
                 onOpenChange={setIsAddColumnDialogOpen}
-                onSave={(name, type) => {
-                    addColumn(schema.length - 1, 'after', name, type);
+                onSave={(name, type, options) => {
+                    addColumn(schema.length - 1, 'after', name, type, options);
                     setIsAddColumnDialogOpen(false);
                 }}
             />
