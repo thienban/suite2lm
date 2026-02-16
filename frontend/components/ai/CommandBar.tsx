@@ -5,6 +5,7 @@ import { Editor } from '@tiptap/react';
 import { Command } from 'cmdk';
 import {
     Columns3,
+    Database,
     FileText,
     Languages,
     Loader2,
@@ -69,6 +70,13 @@ export const SLASH_COMMANDS: SlashCommand[] = [
         description: 'Reformuler le texte sélectionné (ton, style)',
         icon: <Sparkles className="size-4" />,
         mode: 'text_refactor',
+    },
+    {
+        id: 'data',
+        label: '/data',
+        description: 'Interroger vos données en langage naturel',
+        icon: <Database className="size-4" />,
+        mode: 'text_to_sql',
     },
 ];
 

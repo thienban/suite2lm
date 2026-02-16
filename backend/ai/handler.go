@@ -5,21 +5,24 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"suite2lm/db"
 
 	"github.com/gin-gonic/gin"
 )
 
 // Handler holds the AI provider and serves HTTP requests.
 type Handler struct {
-	provider Provider
-	config   *Config
+	provider  Provider
+	config    *Config
+	dbManager *db.DatabaseManager
 }
 
 // NewHandler creates a new AI handler.
-func NewHandler(provider Provider, config *Config) *Handler {
+func NewHandler(provider Provider, config *Config, dbManager *db.DatabaseManager) *Handler {
 	return &Handler{
-		provider: provider,
-		config:   config,
+		provider:  provider,
+		config:    config,
+		dbManager: dbManager,
 	}
 }
 
@@ -32,6 +35,21 @@ func (h *Handler) HandleCommand(c *gin.Context) {
 			Message: "Invalid request: " + err.Error(),
 		})
 		return
+	}
+
+	// Inject DB Schema for text_to_sql if available
+	if req.Mode == "text_to_sql" && h.dbManager != nil {
+		schema, err := h.dbManager.GetSchema()
+		if err != nil {
+			log.Printf("[AI] Failed to get schema: %v", err)
+		} else {
+			// Prepend global schema to context
+			if req.Context.ActiveTable != "" {
+				req.Context.ActiveTable = schema + "\n\n" + req.Context.ActiveTable
+			} else {
+				req.Context.ActiveTable = schema
+			}
+		}
 	}
 
 	// Build the prompt
@@ -70,16 +88,24 @@ func (h *Handler) HandleCommand(c *gin.Context) {
 	content := strings.TrimSpace(resp.Content)
 	responseType := ResponseTypeForMode(req.Mode)
 
-	// For table modes, validate that the response is valid JSON
+	// Clean markdown fences for all modes
+	content = cleanMarkdown(content)
+
+	// For table modes, validate and extract JSON if necessary
 	if req.Mode == "table_generate" || req.Mode == "table_edit" {
-		content = cleanJSONResponse(content)
 		if !json.Valid([]byte(content)) {
-			c.JSON(http.StatusInternalServerError, CommandResponse{
-				Type:    "error",
-				Content: content,
-				Message: "L'IA a retourné un JSON invalide. Réessayez avec une instruction plus précise.",
-			})
-			return
+			// Try to extract JSON from text
+			extracted := extractJSON(content)
+			if json.Valid([]byte(extracted)) {
+				content = extracted
+			} else {
+				c.JSON(http.StatusInternalServerError, CommandResponse{
+					Type:    "error",
+					Content: content,
+					Message: "L'IA a retourné un JSON invalide. Réessayez avec une instruction plus précise.",
+				})
+				return
+			}
 		}
 	}
 
@@ -90,28 +116,31 @@ func (h *Handler) HandleCommand(c *gin.Context) {
 	})
 }
 
-// cleanJSONResponse strips markdown code fences and extracts valid JSON from LLM output.
-func cleanJSONResponse(s string) string {
+// cleanMarkdown strips markdown code fences from LLM output.
+func cleanMarkdown(s string) string {
 	s = strings.TrimSpace(s)
-
-	// Remove ```json ... ``` wrapping
-	if strings.HasPrefix(s, "```json") {
-		s = strings.TrimPrefix(s, "```json")
-		s = strings.TrimSuffix(s, "```")
-		s = strings.TrimSpace(s)
-	} else if strings.HasPrefix(s, "```") {
-		s = strings.TrimPrefix(s, "```")
-		s = strings.TrimSuffix(s, "```")
-		s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "```") {
+		lines := strings.Split(s, "\n")
+		if len(lines) >= 2 {
+			// Remove first line (fence + language)
+			lines = lines[1:]
+			// Remove last line if it's a fence
+			if strings.TrimSpace(lines[len(lines)-1]) == "```" {
+				lines = lines[:len(lines)-1]
+			}
+			return strings.TrimSpace(strings.Join(lines, "\n"))
+		}
 	}
+	return s
+}
 
+// extractJSON attempts to find the largest valid JSON array or object in the string.
+func extractJSON(s string) string {
 	// If it's already valid JSON, return as-is
 	if json.Valid([]byte(s)) {
 		return s
 	}
 
-	// Find ALL valid JSON arrays/objects by bracket-matching, then take the last one
-	// (LLMs sometimes output original + modified table concatenated)
 	var candidates []string
 	pos := 0
 

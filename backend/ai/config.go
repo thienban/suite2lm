@@ -8,7 +8,7 @@ import (
 
 // Config holds the AI service configuration.
 type Config struct {
-	Provider    string  // "openai" | "gemini"
+	Provider    string // "openai" | "gemini"
 	APIKey      string
 	Model       string
 	MaxTokens   int
@@ -67,6 +67,8 @@ func NewProvider(cfg *Config) (Provider, error) {
 		return NewOpenAIProvider(cfg), nil
 	case "gemini":
 		return NewGeminiProvider(cfg), nil
+	case "mock":
+		return NewMockProvider(), nil
 	default:
 		return nil, fmt.Errorf("unsupported LLM provider: %s", cfg.Provider)
 	}

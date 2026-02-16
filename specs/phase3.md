@@ -224,8 +224,6 @@ Implémenter un moteur d'évaluation de formules pour les colonnes de type `form
 *   **Validation :** Le backend valide que le JSON retourné par l'IA est syntaxiquement correct avant de le renvoyer au frontend.
 *   **Fallback :** Si l'appel LLM échoue, retourner un message d'erreur clair sans casser l'éditeur.
 
-### Étape 5: Structure des données
-
 -------------------------------------
 
 ## 6. Critères de Validation (Phase 3)

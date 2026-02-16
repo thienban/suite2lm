@@ -38,7 +38,7 @@ L'affichage "Preview" actuel (tableau HTML simple) est remplacé par un composan
 
 ### A. Stack Frontend (Évolution)
 
-*   **Composant Grille :** `TanStack Table` (v8).
+*   **Composant Grille :** `AG GRID` (v8).
     *   *Raison :* Headless (non style-agnostic), performant, et permet une intégration parfaite avec **Shadcn UI**. Contrairement à des solutions "clés en main" (AG Grid), elle permet de garder un bundle léger et un look 100% custom.
 *   **Gestion d'État :** Local state dans le composant React, propagé vers TipTap.
 
@@ -55,7 +55,7 @@ interface SmartTableEditableProps {
 
 **Logique de flux de données :**
 1.  **Parsing :** Au montage, le JSON `initialContent` est parsé en objet JS local (state `data`).
-2.  **Rendu :** TanStack Table rend la grille basée sur `data`.
+2.  **Rendu :** AG GRID rend la grille basée sur `data`.
 3.  **Édition :**
     *   `onCellEdit` met à jour le state local `data`.
     *   Un `useEffect` ou le handler d'édition sérialise `data` en JSON.
@@ -69,8 +69,8 @@ interface SmartTableEditableProps {
 
 ## 4. Étapes d'Implémentation
 
-### Étape 1 : Mise en place de TanStack Table
-*   [X] Installer `@tanstack/react-table`.
+### Étape 1 : Mise en place de AG GRID
+*   [X] Installer `ag-grid-react`.
 *   [X] Créer un composant de base `DataTable` avec Shadcn UI.
 
 ### Étape 2 : Rendre la Table Éditable

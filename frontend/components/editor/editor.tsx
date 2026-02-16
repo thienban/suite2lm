@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Markdown } from 'tiptap-markdown';
+import { AskDataModal } from './DataQuery/AskDataModal';
+import { DynamicValueExtension } from './DynamicValue/DynamicValueExtension';
 import { SmartTableExtension } from './SmartTable';
 
 export interface EditorProps {
@@ -28,6 +30,7 @@ export interface EditorProps {
 
 export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) => {
     const [commandBarOpen, setCommandBarOpen] = useState(false);
+    const [askDataOpen, setAskDataOpen] = useState(false);
     const [slashCommand, setSlashCommand] = useState<SlashCommand | null>(null);
 
     const editor = useEditor({
@@ -36,6 +39,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
                 codeBlock: false,
             }),
             SmartTableExtension,
+            DynamicValueExtension,
             SlashMenuExtension,
             Markdown.configure({
                 html: true,
@@ -91,9 +95,20 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
 
     // Slash menu selects a command → open CommandBar with that command pre-loaded
     const handleSlashCommand = useCallback((cmd: SlashCommand) => {
+        if (cmd.id === 'data') {
+            setAskDataOpen(true);
+            return;
+        }
         setSlashCommand(cmd);
         setCommandBarOpen(true);
     }, []);
+
+    const handleInsertData = useCallback((query: string, question: string) => {
+        editor?.chain().focus().insertContent({
+            type: 'dynamicValue',
+            attrs: { query, question }
+        }).run();
+    }, [editor]);
 
     if (!editor) {
         return null;
@@ -192,6 +207,12 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
                 initialCommand={slashCommand}
                 activeTableContent={detectedTable?.content ?? null}
                 activeTablePos={detectedTable?.pos ?? null}
+            />
+
+            <AskDataModal
+                open={askDataOpen}
+                onOpenChange={setAskDataOpen}
+                onInsert={handleInsertData}
             />
         </div>
     );

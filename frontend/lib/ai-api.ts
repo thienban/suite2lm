@@ -8,11 +8,11 @@ export interface AICommandRequest {
         cursorPosition?: number;
         activeTable?: string;
     };
-    mode: 'table_generate' | 'table_edit' | 'text_generate' | 'text_refactor';
+    mode: 'table_generate' | 'table_edit' | 'text_generate' | 'text_refactor' | 'text_to_sql';
 }
 
 export interface AICommandResponse {
-    type: 'table_update' | 'text_insert' | 'text_replace' | 'error';
+    type: 'table_update' | 'text_insert' | 'text_replace' | 'sql_query' | 'error';
     content: string;
     message: string;
 }

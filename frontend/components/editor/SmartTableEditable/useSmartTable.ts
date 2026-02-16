@@ -62,6 +62,21 @@ export const useSmartTable = ({ content, onUpdate }: UseSmartTableProps) => {
         onUpdate(jsonString);
     }, [onUpdate]);
 
+    // ── Auto-sync to DB (Debounced) ──
+    useEffect(() => {
+        if (!doc) return;
+
+        const timer = setTimeout(() => {
+            fetch('http://localhost:8080/api/db/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(doc.metadata ? { ...doc.metadata, schema: doc.schema, data: doc.data } : { id: 'unknown', schema: doc.schema, data: doc.data }),
+            }).catch(err => console.error('Failed to sync table to DB:', err));
+        }, 1000); // 1 second debounce
+
+        return () => clearTimeout(timer);
+    }, [doc]);
+
     // ── Convenience: update just the data rows ──
     const updateData = useCallback((newData: Record<string, unknown>[]) => {
         const current = docRef.current;

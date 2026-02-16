@@ -55,6 +55,11 @@ Réponds UNIQUEMENT avec le texte de continuation, sans préfixe ni explication.
 Réécris le texte fourni selon l'instruction donnée.
 Conserve le sens original mais adapte le style selon la demande.
 Réponds UNIQUEMENT avec le texte réécrit, sans préfixe ni explication.`,
+
+	"text_to_sql": `Tu es un expert SQL.
+Ta tâche est de convertir une question en langage naturel en une requête SQL (SELECT uniquement) compatible SQLite/libSQL.
+On te fournira le schéma de la base de données.
+Réponds UNIQUEMENT avec la requête SQL brute, sans markdown, sans explication.`,
 }
 
 // BuildPrompt constructs the user prompt based on the mode and context.
@@ -91,6 +96,16 @@ func BuildPrompt(req CommandRequest) (systemPrompt string, userPrompt string, er
 		}
 		userPrompt = fmt.Sprintf("Texte à refactoriser :\n%s\n\nInstruction : %s", req.Context.Selection, req.Prompt)
 
+	case "text_to_sql":
+		// We expect the schema to be passed in the context (e.g. via ActiveTable or a new field)
+		// For now, let's assume ActiveTable holds the schema or DDL
+		if req.Context.ActiveTable == "" {
+			// Fallback: if no schema provided, maybe just try? But improved with DDL
+			userPrompt = req.Prompt
+		} else {
+			userPrompt = fmt.Sprintf("Schéma SQL :\n%s\n\nQuestion : %s", req.Context.ActiveTable, req.Prompt)
+		}
+
 	default:
 		userPrompt = req.Prompt
 	}
@@ -107,6 +122,8 @@ func ResponseTypeForMode(mode string) string {
 		return "text_insert"
 	case "text_refactor":
 		return "text_replace"
+	case "text_to_sql":
+		return "sql_query"
 	default:
 		return "text_insert"
 	}
