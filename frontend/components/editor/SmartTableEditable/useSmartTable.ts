@@ -160,6 +160,23 @@ export const useSmartTable = ({ content, onUpdate }: UseSmartTableProps) => {
         updateParent(updated);
     }, [updateParent]);
 
+    // ─── Column Schema update (e.g. formula expression) ──
+    const updateColumn = useCallback((key: string, updates: Partial<SmartTableColumn>) => {
+        const current = docRef.current;
+        if (!current) return;
+
+        const colIndex = current.schema.findIndex(c => c.key === key);
+        if (colIndex === -1) return;
+
+        const newSchema = [...current.schema];
+        newSchema[colIndex] = { ...newSchema[colIndex], ...updates };
+
+        const updated = { ...current, schema: newSchema };
+        setDoc(updated);
+        docRef.current = updated;
+        updateParent(updated);
+    }, [updateParent]);
+
     // ── Metadata update ──
     const updateMetadata = useCallback((updates: Partial<SmartTableMetadata>) => {
         const current = docRef.current;
@@ -183,6 +200,7 @@ export const useSmartTable = ({ content, onUpdate }: UseSmartTableProps) => {
         addColumn,
         deleteColumn,
         handleHeaderUpdate,
+        updateColumn,
         updateMetadata,
     };
 };

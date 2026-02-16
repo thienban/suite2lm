@@ -19,6 +19,7 @@ import {
 import { AgGridReact } from 'ag-grid-react';
 import { AlertCircle } from 'lucide-react';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { FormulaBar } from './FormulaBar';
 import { TableToolbar } from './TableToolbar';
 import { useSmartTable } from './useSmartTable';
 
@@ -141,12 +142,23 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
         deleteRow,
         addColumn,
         deleteColumn,
+        updateColumn,
     } = useSmartTable({ content, onUpdate });
 
     // Compute formula values
     const computedData = useFormulaEngine({ schema, data });
 
     const gridRef = useRef<AgGridReact>(null);
+    const [focusedColKey, setFocusedColKey] = useState<string | null>(null);
+
+    // Get currently focused column schema
+    const focusedColumn = useMemo(() =>
+        schema.find(col => col.key === focusedColKey) || null,
+        [schema, focusedColKey]);
+
+    const handleCellFocused = useCallback((params: any) => {
+        setFocusedColKey(params.column ? params.column.getColId() : null);
+    }, []);
 
     // Context menu state
     const [contextMenu, setContextMenu] = useState<{
@@ -207,6 +219,14 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
                         </div>
                     )}
 
+                    {/* Formula Bar */}
+                    <div className="bg-background">
+                        <FormulaBar
+                            column={focusedColumn}
+                            onUpdate={(expr) => focusedColKey && updateColumn(focusedColKey, { expression: expr })}
+                        />
+                    </div>
+
                     <div style={{ width: '100%' }}>
                         <AgGridReact
                             ref={gridRef}
@@ -216,6 +236,7 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
                             theme={smartTableTheme}
                             domLayout="autoHeight"
                             onCellValueChanged={onCellValueChanged}
+                            onCellFocused={handleCellFocused}
                             singleClickEdit={true}
                             stopEditingWhenCellsLoseFocus={true}
                             onCellContextMenu={(event) => {
