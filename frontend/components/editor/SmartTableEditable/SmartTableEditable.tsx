@@ -223,6 +223,7 @@ export const SmartTableEditable: React.FC<SmartTableEditableProps> = ({ content,
                     <div className="bg-background">
                         <FormulaBar
                             column={focusedColumn}
+                            schema={schema}
                             onUpdate={(expr) => focusedColKey && updateColumn(focusedColKey, { expression: expr })}
                         />
                     </div>
