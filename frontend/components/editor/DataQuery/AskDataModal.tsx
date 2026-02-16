@@ -26,21 +26,21 @@ export const AskDataModal: React.FC<AskDataModalProps> = ({ open, onOpenChange, 
     const [error, setError] = useState<string | null>(null);
     const [tables, setTables] = useState<string[]>([]);
 
+    const fetchTables = async () => {
+        try {
+            const res = await fetch('http://localhost:8080/api/db/tables');
+            const data = await res.json();
+            if (data.data) {
+                setTables(data.data.map((row: any) => row.name));
+            }
+        } catch (err) {
+            console.error("Failed to fetch tables", err);
+        }
+    };
+
     useEffect(() => {
         if (open) {
-            // Fetch tables
-            fetch('http://localhost:8080/api/db/query', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'" }),
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.data) {
-                        setTables(data.data.map((row: any) => row.name));
-                    }
-                })
-                .catch(err => console.error("Failed to fetch tables", err));
+            fetchTables();
         }
     }, [open]);
 

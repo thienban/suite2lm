@@ -204,3 +204,123 @@ func placeholders(n int) string {
 	}
 	return strings.Join(ps, ", ")
 }
+
+func (h *DBHandler) ListTables(c *gin.Context) {
+	if h.Manager.DB == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database not initialized"})
+		return
+	}
+
+	query := "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+	rows, err := h.Manager.DB.Query(query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var tables []map[string]string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			continue
+		}
+		tables = append(tables, map[string]string{"name": name})
+	}
+
+	if tables == nil {
+		tables = []map[string]string{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": tables})
+}
+
+func (h *DBHandler) GetTableData(c *gin.Context) {
+	tableName := c.Param("name")
+	// Basic sanitation - robust validation recommended for prod
+	if tableName == "" || strings.ContainsAny(tableName, "; \" '") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid table name"})
+		return
+	}
+
+	// Fetch data (LIMIT 100 for safety)
+	query := fmt.Sprintf("SELECT * FROM %s LIMIT 100", tableName)
+	rows, err := h.Manager.DB.Query(query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	cols, _ := rows.Columns()
+	var result []map[string]interface{}
+
+	for rows.Next() {
+		columns := make([]interface{}, len(cols))
+		columnPointers := make([]interface{}, len(cols))
+		for i := range columns {
+			columnPointers[i] = &columns[i]
+		}
+
+		if err := rows.Scan(columnPointers...); err != nil {
+			continue
+		}
+
+		row := make(map[string]interface{})
+		for i, colName := range cols {
+			valPtr := columnPointers[i].(*interface{})
+			val := *valPtr
+			if b, ok := val.([]byte); ok {
+				row[colName] = string(b)
+			} else {
+				row[colName] = val
+			}
+		}
+		result = append(result, row)
+	}
+
+	if result == nil {
+		result = []map[string]interface{}{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+func (h *DBHandler) GetTableSchema(c *gin.Context) {
+	tableName := c.Param("name")
+	if tableName == "" || strings.ContainsAny(tableName, "; \" '") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid table name"})
+		return
+	}
+
+	query := fmt.Sprintf("PRAGMA table_info(%s)", tableName)
+	rows, err := h.Manager.DB.Query(query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var columns []map[string]interface{}
+	// PRAGMA table_info returns: cid, name, type, notnull, dflt_value, pk
+	for rows.Next() {
+		var cid int
+		var name, dtype string
+		var notnull, pk int
+		var dflt interface{}
+
+		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dflt, &pk); err != nil {
+			continue
+		}
+		columns = append(columns, map[string]interface{}{
+			"name": name,
+			"type": dtype,
+		})
+	}
+
+	if columns == nil {
+		columns = []map[string]interface{}{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": columns})
+}

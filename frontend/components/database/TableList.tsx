@@ -17,11 +17,7 @@ export const TableList: React.FC<TableListProps> = ({ onSelectTable, selectedTab
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch('http://localhost:8080/api/db/query', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'" }),
-            });
+            const res = await fetch('http://localhost:8080/api/db/tables');
             const data = await res.json();
             if (data.data) {
                 setTables(data.data.map((row: any) => row.name));

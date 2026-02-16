@@ -59,7 +59,12 @@ func main() {
 
 		dbHandler := handlers.NewDBHandler(dbManager)
 		api.POST("/db/sync", dbHandler.SyncTable)
-		api.POST("/db/query", dbHandler.ExecuteQuery)
+		api.POST("/db/query", dbHandler.ExecuteQuery) // Kept for AI interaction for now
+
+		// Secure Viewer Endpoints
+		api.GET("/db/tables", dbHandler.ListTables)
+		api.GET("/db/tables/:name", dbHandler.GetTableData)
+		api.GET("/db/tables/:name/schema", dbHandler.GetTableSchema)
 		log.Println("✅ Database service enabled")
 	}
 

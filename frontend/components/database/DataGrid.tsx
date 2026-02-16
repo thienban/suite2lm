@@ -25,22 +25,14 @@ export const DataGrid: React.FC<DataGridProps> = ({ tableName }) => {
             setError(null);
             try {
                 // 1. Get Columns
-                const colRes = await fetch('http://localhost:8080/api/db/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: `PRAGMA table_info(${tableName})` }),
-                });
+                const colRes = await fetch(`http://localhost:8080/api/db/tables/${tableName}/schema`);
                 const colData = await colRes.json();
                 if (colData.data) {
                     setColumns(colData.data);
                 }
 
                 // 2. Get Data (Limit 100)
-                const dataRes = await fetch('http://localhost:8080/api/db/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: `SELECT * FROM ${tableName} LIMIT 100` }),
-                });
+                const dataRes = await fetch(`http://localhost:8080/api/db/tables/${tableName}`);
                 const rowData = await dataRes.json();
                 if (rowData.data) {
                     setData(rowData.data);
