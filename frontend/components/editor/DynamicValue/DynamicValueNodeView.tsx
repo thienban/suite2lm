@@ -91,7 +91,7 @@ export const DynamicValueNodeView: React.FC<NodeViewProps> = ({ node }) => {
                         )}
                         <div>
                             <span className="font-semibold text-violet-200">SQL:</span>
-                            <div className="mt-1 font-mono bg-black/20 p-1.5 rounded opacity-80 break-words">
+                            <div className="font-mono text-xs text-muted-foreground bg-muted p-2 rounded mb-2 wrap-break-word max-h-32 overflow-auto">
                                 {query}
                             </div>
                         </div>
