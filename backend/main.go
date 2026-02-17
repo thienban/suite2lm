@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"suite2lm/ai"
+	"suite2lm/db"
 	"suite2lm/handlers"
 
 	"github.com/gin-contrib/cors"
@@ -42,6 +43,35 @@ func main() {
 		api.POST("/files/:name", handlers.SaveFileContent)
 	}
 
+	// Database service
+	var dbManager *db.DatabaseManager
+	dbPath := "../workspace/data.db"
+	if remoteURL := os.Getenv("TURSO_DATABASE_URL"); remoteURL != "" {
+		dbPath = remoteURL
+	}
+
+	manager, err := db.NewDatabaseManager(dbPath)
+	if err != nil {
+		log.Printf("⚠️  Database service disabled: %v", err)
+	} else {
+		dbManager = manager
+		defer dbManager.Close()
+
+		dbHandler := handlers.NewDBHandler(dbManager)
+		api.POST("/db/sync", dbHandler.SyncTable)
+		api.POST("/db/query", dbHandler.ExecuteQuery) // Kept for AI interaction for now
+
+		// Secure Viewer Endpoints
+		api.GET("/db/tables", dbHandler.ListTables)
+		api.GET("/db/tables/:name", dbHandler.GetTableData)
+		api.GET("/db/tables/:name/schema", dbHandler.GetTableSchema)
+
+		// Secure Saved Query Endpoints
+		api.GET("/db/saved/:id", dbHandler.GetSavedQuery)
+		api.GET("/db/saved/:id/result", dbHandler.ExecuteSavedQuery)
+		log.Println("✅ Database service enabled")
+	}
+
 	// Register AI routes (optional — only if LLM_API_KEY is configured)
 	aiConfig, err := ai.LoadConfig()
 	if err != nil {
@@ -52,7 +82,7 @@ func main() {
 		if err != nil {
 			log.Printf("⚠️  AI service disabled: %v", err)
 		} else {
-			aiHandler := ai.NewHandler(provider, aiConfig)
+			aiHandler := ai.NewHandler(provider, aiConfig, dbManager)
 			api.POST("/ai/command", aiHandler.HandleCommand)
 			log.Printf("✅ AI service enabled (provider: %s, model: %s)", aiConfig.Provider, aiConfig.Model)
 		}

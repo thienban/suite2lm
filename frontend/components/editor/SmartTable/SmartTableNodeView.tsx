@@ -8,6 +8,7 @@ export const SmartTableNodeView = ({ node, updateAttributes, extension, editor, 
     const isSmartTable = node.attrs.language === 'smart-table' || node.attrs.language === 'json';
     // Default to preview mode if it's a smart table
     const [isPreview, setIsPreview] = useState(isSmartTable);
+    const [isSelected, setIsSelected] = useState(false);
 
     // Sync state if language changes externally
     useEffect(() => {
@@ -16,6 +17,26 @@ export const SmartTableNodeView = ({ node, updateAttributes, extension, editor, 
             // Let's rely on user preference for now, but ensure isSmartTable is true.
         }
     }, [node.attrs.language]);
+
+    // Listen for deselect events (another table was selected, or user clicked outside)
+    useEffect(() => {
+        const handleDeselect = () => {
+            setIsSelected(false);
+        };
+        const handleOtherSelect = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (typeof getPos === 'function' && detail.pos !== getPos()) {
+                setIsSelected(false);
+            }
+        };
+
+        window.addEventListener('smart-table-deselect', handleDeselect);
+        window.addEventListener('smart-table-select', handleOtherSelect);
+        return () => {
+            window.removeEventListener('smart-table-deselect', handleDeselect);
+            window.removeEventListener('smart-table-select', handleOtherSelect);
+        };
+    }, [getPos]);
 
     const handleUpdate = useCallback((newContent: string) => {
         if (typeof getPos === 'function') {
@@ -37,6 +58,18 @@ export const SmartTableNodeView = ({ node, updateAttributes, extension, editor, 
         }
     }, [editor, getPos]);
 
+    // When user clicks on this Smart Table, select it for AI context
+    const handleTableClick = useCallback(() => {
+        if (!isSmartTable || typeof getPos !== 'function') return;
+
+        const pos = getPos();
+        setIsSelected(true);
+
+        window.dispatchEvent(new CustomEvent('smart-table-select', {
+            detail: { content: node.textContent, pos },
+        }));
+    }, [isSmartTable, getPos, node.textContent]);
+
     return (
         <NodeViewWrapper className="relative group code-block-wrapper" >
             {isSmartTable && (
@@ -54,7 +87,14 @@ export const SmartTableNodeView = ({ node, updateAttributes, extension, editor, 
 
             {
                 isPreview && isSmartTable ? (
-                    <div className="p-2 border rounded-md bg-white dark:bg-black" contentEditable={false} >
+                    <div
+                        className={`bg-white dark:bg-black rounded-md transition-all cursor-pointer ${isSelected
+                            ? 'ring-2 ring-violet-500 ring-offset-1'
+                            : 'hover:ring-1 hover:ring-violet-300'
+                            }`}
+                        contentEditable={false}
+                        onClick={handleTableClick}
+                    >
                         <SmartTableEditable content={node.textContent} onUpdate={handleUpdate} />
                     </div>
                 ) : (

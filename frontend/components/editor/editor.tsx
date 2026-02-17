@@ -4,6 +4,7 @@ import { CommandBar, SlashCommand } from '@/components/ai/CommandBar';
 import { SlashMenu } from '@/components/ai/SlashMenu';
 import { SlashMenuExtension } from '@/components/ai/SlashMenuExtension';
 import { Button } from '@/components/ui/button';
+import { useActiveSmartTable } from '@/hooks/useActiveSmartTable';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import {
@@ -18,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Markdown } from 'tiptap-markdown';
+import { AskDataModal } from './DataQuery/AskDataModal';
+import { DynamicValueExtension } from './DynamicValue/DynamicValueExtension';
 import { SmartTableExtension } from './SmartTable';
 
 export interface EditorProps {
@@ -27,6 +30,7 @@ export interface EditorProps {
 
 export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) => {
     const [commandBarOpen, setCommandBarOpen] = useState(false);
+    const [askDataOpen, setAskDataOpen] = useState(false);
     const [slashCommand, setSlashCommand] = useState<SlashCommand | null>(null);
 
     const editor = useEditor({
@@ -35,6 +39,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
                 codeBlock: false,
             }),
             SmartTableExtension,
+            DynamicValueExtension,
             SlashMenuExtension,
             Markdown.configure({
                 html: true,
@@ -49,6 +54,18 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
         },
         immediatelyRender: false
     });
+
+    const { activeTable: detectedTable } = useActiveSmartTable();
+
+    // Deselect Smart Table when clicking in the editor content area (outside tables)
+    const handleEditorAreaClick = useCallback((e: React.MouseEvent) => {
+        // Check if the click target is inside a Smart Table node view
+        const target = e.target as HTMLElement;
+        const isInsideTable = target.closest('.code-block-wrapper');
+        if (!isInsideTable) {
+            window.dispatchEvent(new CustomEvent('smart-table-deselect'));
+        }
+    }, []);
 
     // Update content when initialContent changes
     useEffect(() => {
@@ -78,9 +95,20 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
 
     // Slash menu selects a command → open CommandBar with that command pre-loaded
     const handleSlashCommand = useCallback((cmd: SlashCommand) => {
+        if (cmd.id === 'data') {
+            setAskDataOpen(true);
+            return;
+        }
         setSlashCommand(cmd);
         setCommandBarOpen(true);
     }, []);
+
+    const handleInsertData = useCallback((queryId: string, question: string) => {
+        editor?.chain().focus().insertContent({
+            type: 'dynamicValue',
+            attrs: { queryId, question }
+        }).run();
+    }, [editor]);
 
     if (!editor) {
         return null;
@@ -161,7 +189,7 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
                     Save
                 </Button>
             </div>
-            <div className="flex-1 overflow-auto p-4 relative">
+            <div className="flex-1 overflow-auto p-4 relative" onClick={handleEditorAreaClick}>
                 <EditorContent editor={editor} />
 
                 {/* Inline Slash Menu */}
@@ -177,6 +205,14 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
                 open={commandBarOpen}
                 onOpenChange={setCommandBarOpen}
                 initialCommand={slashCommand}
+                activeTableContent={detectedTable?.content ?? null}
+                activeTablePos={detectedTable?.pos ?? null}
+            />
+
+            <AskDataModal
+                open={askDataOpen}
+                onOpenChange={setAskDataOpen}
+                onInsert={handleInsertData}
             />
         </div>
     );

@@ -1,10 +1,11 @@
-import { Button } from '@/components/ui/button';
 import { Columns3, Plus, Rows3 } from 'lucide-react';
 import React from 'react';
 
+import { Button } from '@/components/ui/button';
+
 interface TableToolbarProps {
     onAddRow: () => void;
-    onAddColumn: () => void;
+    onAddColumnClick: () => void;
     onDeleteRow?: () => void;
     onDeleteColumn?: () => void;
     canDelete?: boolean;
@@ -12,7 +13,7 @@ interface TableToolbarProps {
 
 export const TableToolbar: React.FC<TableToolbarProps> = ({
     onAddRow,
-    onAddColumn,
+    onAddColumnClick,
 }) => {
     return (
         <div className="flex items-center gap-1.5 py-1.5 px-1">
@@ -29,7 +30,14 @@ export const TableToolbar: React.FC<TableToolbarProps> = ({
             <Button
                 variant="ghost"
                 size="xs"
-                onClick={onAddColumn}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onAddColumnClick();
+                }}
+                onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }}
                 className="text-muted-foreground hover:text-foreground"
             >
                 <Plus data-icon="inline-start" className="size-3" />
