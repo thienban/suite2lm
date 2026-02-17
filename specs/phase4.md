@@ -117,10 +117,17 @@ Nous utiliserons les bindings officiels **Turso** (`github.com/tursodatabase/tur
     *   Afficher un indicateur de chargement/erreur élégant.
 
 ### Étape 5 : Front-end - Affichage de la base de données
-*   [ ] **Affichage des tables :**
+*   [X] **Affichage des tables :**
     *   Afficher les tables de la base de données.
     *   Afficher les colonnes de chaque table.
     *   Afficher les données de chaque table.
+    [] **Sécurise les API `api/db/`:**
+     *  securise les endpoints /api/db/tables et /api/db/data
+     *  DynamicValue
+
+     ### Étape 6 : Améliration du gestion appel API
+     * Front-end: Utilise librarie tanstack-query pour gérer les appels API
+     * Back-end: Utilise librarie sqlx
 
 ---
 

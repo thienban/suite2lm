@@ -12,39 +12,53 @@ import { NodeViewProps, NodeViewWrapper } from '@tiptap/react';
 
 export const DynamicValueNodeView: React.FC<NodeViewProps> = ({ node }) => {
     const query = node.attrs.query as string;
+    const queryId = node.attrs.queryId as string;
     const question = node.attrs.question as string;
     const [result, setResult] = useState<string | null>(null);
+    const [savedSql, setSavedSql] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!query) return;
+        if (!query && !queryId) return;
 
         let isMounted = true;
         setLoading(true);
 
         const fetchData = async () => {
             try {
-                const res = await fetch('http://localhost:8080/api/db/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query }),
-                });
+                if (queryId) {
+                    // New Secure Mode: Fetch result by ID
+                    const res = await fetch(`http://localhost:8080/api/db/saved/${queryId}/result`);
+                    if (!res.ok) throw new Error('Query failed');
+                    const data = await res.json();
 
-                if (!res.ok) throw new Error('Query failed');
-                const data = await res.json();
+                    // Also fetch metadata for tooltip
+                    fetch(`http://localhost:8080/api/db/saved/${queryId}`)
+                        .then(r => r.json())
+                        .then(d => {
+                            if (isMounted && d.sql) setSavedSql(d.sql);
+                        })
+                        .catch(err => console.error("Failed to fetch query metadata", err));
 
-                if (isMounted) {
-                    if (data.data && data.data.length > 0) {
-                        const firstRow = data.data[0];
-                        // Get first value regardless of key
-                        const firstKey = Object.keys(firstRow)[0];
-                        const val = firstRow[firstKey];
-                        setResult(val !== null && val !== undefined ? String(val) : '(empty)');
-                    } else {
-                        setResult('(no result)');
+                    if (isMounted) {
+                        processResult(data);
                     }
-                    setError(null);
+                } else {
+                    // Legacy Mode: Send raw SQL (Deprecated/Transition)
+                    // Note: This matches the old behavior for existing nodes
+                    const res = await fetch('http://localhost:8080/api/db/query', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query }),
+                    });
+
+                    if (!res.ok) throw new Error('Query failed');
+                    const data = await res.json();
+
+                    if (isMounted) {
+                        processResult(data);
+                    }
                 }
             } catch (err: any) {
                 if (isMounted) {
@@ -56,13 +70,26 @@ export const DynamicValueNodeView: React.FC<NodeViewProps> = ({ node }) => {
             }
         };
 
+        const processResult = (data: any) => {
+            if (data.data && data.data.length > 0) {
+                const firstRow = data.data[0];
+                // Get first value regardless of key
+                const firstKey = Object.keys(firstRow)[0];
+                const val = firstRow[firstKey];
+                setResult(val !== null && val !== undefined ? String(val) : '(empty)');
+            } else {
+                setResult('(no result)');
+            }
+            setError(null);
+        };
+
         // Debounce slightly to avoid flash on quick edits
         const timer = setTimeout(fetchData, 100);
         return () => {
             isMounted = false;
             clearTimeout(timer);
         };
-    }, [query]);
+    }, [query, queryId]);
 
     return (
         <NodeViewWrapper as="span" className="inline-flex items-center mx-1 align-baseline relative group cursor-pointer">
@@ -92,7 +119,7 @@ export const DynamicValueNodeView: React.FC<NodeViewProps> = ({ node }) => {
                         <div>
                             <span className="font-semibold text-violet-200">SQL:</span>
                             <div className="font-mono text-xs text-muted-foreground bg-muted p-2 rounded mb-2 wrap-break-word max-h-32 overflow-auto">
-                                {query}
+                                {savedSql || query || "(hidden)"}
                             </div>
                         </div>
                         {error && (
@@ -100,6 +127,7 @@ export const DynamicValueNodeView: React.FC<NodeViewProps> = ({ node }) => {
                                 Error: {error}
                             </div>
                         )}
+                        {queryId && <div className="text-[10px] text-muted-foreground mt-1">ID: {queryId}</div>}
                     </TooltipContent>
                 </Tooltip>
             </TooltipProvider>

@@ -16,13 +16,14 @@ import React, { useEffect, useState } from 'react';
 interface AskDataModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onInsert: (query: string, question: string) => void;
+    onInsert: (queryId: string, question: string) => void;
 }
 
 export const AskDataModal: React.FC<AskDataModalProps> = ({ open, onOpenChange, onInsert }) => {
     const [question, setQuestion] = useState('');
     const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState<string | null>(null);
+    const [resultId, setResultId] = useState<string | null>(null);
+    const [resultSummary, setResultSummary] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [tables, setTables] = useState<string[]>([]);
 
@@ -50,7 +51,8 @@ export const AskDataModal: React.FC<AskDataModalProps> = ({ open, onOpenChange, 
 
         setLoading(true);
         setError(null);
-        setResult(null);
+        setResultId(null);
+        setResultSummary(null);
 
         try {
             const res = await fetch('http://localhost:8080/api/ai/command', {
@@ -72,11 +74,13 @@ export const AskDataModal: React.FC<AskDataModalProps> = ({ open, onOpenChange, 
                 throw new Error(data.message || 'AI Error');
             }
 
-            // Clean result (remove markdown fences if any remain)
-            let sql = data.content as string;
-            sql = sql.replace(/^```sql\s*/, '').replace(/^```\s*/, '').replace(/```$/, '').trim();
+            if (data.type === 'sql_query' && data.query_id) {
+                setResultId(data.query_id);
+                setResultSummary(data.summary || 'Query generated successfully');
+            } else {
+                throw new Error('Unexpected response format');
+            }
 
-            setResult(sql);
         } catch (err: any) {
             setError(err.message || 'Something went wrong');
         } finally {
@@ -85,11 +89,12 @@ export const AskDataModal: React.FC<AskDataModalProps> = ({ open, onOpenChange, 
     };
 
     const handleInsert = () => {
-        if (result) {
-            onInsert(result, question);
+        if (resultId) {
+            onInsert(resultId, question);
             onOpenChange(false);
             setQuestion('');
-            setResult(null);
+            setResultId(null);
+            setResultSummary(null);
         }
     };
 
@@ -147,19 +152,23 @@ export const AskDataModal: React.FC<AskDataModalProps> = ({ open, onOpenChange, 
                         </div>
                     )}
 
-                    {result && (
+                    {resultId && (
                         <div className="space-y-2">
-                            <Label>Generated SQL</Label>
+                            <Label>Generated Query</Label>
                             <div className="p-3 bg-slate-950 text-slate-50 font-mono text-sm rounded border overflow-x-auto">
-                                <code>{result}</code>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs text-muted-foreground">ID:</span>
+                                    <Badge variant="secondary" className="font-mono text-[10px] h-5">{resultId}</Badge>
+                                </div>
+                                <div className="text-slate-300 text-xs">{resultSummary}</div>
                             </div>
                         </div>
                     )}
 
                     <DialogFooter className="gap-2 sm:gap-0">
-                        {result ? (
+                        {resultId ? (
                             <>
-                                <Button type="button" variant="outline" onClick={() => setResult(null)}>
+                                <Button type="button" variant="outline" onClick={() => { setResultId(null); setResultSummary(null); }}>
                                     Back
                                 </Button>
                                 <Button type="button" onClick={handleInsert}>

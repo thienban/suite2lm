@@ -103,10 +103,10 @@ export const Editor: React.FC<EditorProps> = ({ initialContent = '', onSave }) =
         setCommandBarOpen(true);
     }, []);
 
-    const handleInsertData = useCallback((query: string, question: string) => {
+    const handleInsertData = useCallback((queryId: string, question: string) => {
         editor?.chain().focus().insertContent({
             type: 'dynamicValue',
-            attrs: { query, question }
+            attrs: { queryId, question }
         }).run();
     }, [editor]);
 

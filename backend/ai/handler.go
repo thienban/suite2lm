@@ -1,6 +1,8 @@
 package ai
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -9,6 +11,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// Handler holds the AI provider and serves HTTP requests.
+// ... existing code ...
+
+// generateID generates a random hex string
+func generateID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 // Handler holds the AI provider and serves HTTP requests.
 type Handler struct {
@@ -91,7 +103,7 @@ func (h *Handler) HandleCommand(c *gin.Context) {
 	// Clean markdown fences for all modes
 	content = cleanMarkdown(content)
 
-	// For table modes, validate and extract JSON if necessary
+	// For table modes, validate and extract JSON
 	if req.Mode == "table_generate" || req.Mode == "table_edit" {
 		if !json.Valid([]byte(content)) {
 			// Try to extract JSON from text
@@ -106,6 +118,36 @@ func (h *Handler) HandleCommand(c *gin.Context) {
 				})
 				return
 			}
+		}
+	} else if req.Mode == "text_to_sql" {
+		// Secure SQL handling: Save to DB, return ID
+		queryID := generateID()
+		// Save to _system_queries
+		if h.dbManager != nil && h.dbManager.DB != nil {
+			_, err := h.dbManager.DB.Exec("INSERT INTO _system_queries (id, sql, question) VALUES (?, ?, ?)", queryID, content, req.Prompt)
+			if err != nil {
+				log.Printf("[AI] Failed to save query: %v", err)
+				c.JSON(http.StatusInternalServerError, CommandResponse{
+					Type:    "error",
+					Message: "Failed to save generated query",
+				})
+				return
+			}
+			// Return ID instead of SQL
+			c.JSON(http.StatusOK, map[string]string{
+				"type":     "sql_query",
+				"query_id": queryID,
+				"summary":  "Click to view result", // simple summary for now
+			})
+			return
+		} else {
+			log.Printf("[AI] DB not available to save query")
+			// Fallback or error? For now error as security is paramount
+			c.JSON(http.StatusInternalServerError, CommandResponse{
+				Type:    "error",
+				Message: "Database unavailable for secure query storage",
+			})
+			return
 		}
 	}
 

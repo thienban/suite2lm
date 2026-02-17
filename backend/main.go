@@ -65,6 +65,10 @@ func main() {
 		api.GET("/db/tables", dbHandler.ListTables)
 		api.GET("/db/tables/:name", dbHandler.GetTableData)
 		api.GET("/db/tables/:name/schema", dbHandler.GetTableSchema)
+
+		// Secure Saved Query Endpoints
+		api.GET("/db/saved/:id", dbHandler.GetSavedQuery)
+		api.GET("/db/saved/:id/result", dbHandler.ExecuteSavedQuery)
 		log.Println("✅ Database service enabled")
 	}
 

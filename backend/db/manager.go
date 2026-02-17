@@ -25,6 +25,11 @@ func NewDatabaseManager(dbPath string) (*DatabaseManager, error) {
 		if err := db.Ping(); err != nil {
 			return nil, fmt.Errorf("failed to ping remote db: %w", err)
 		}
+
+		// Initialize system tables
+		if err := initSystemTables(db); err != nil {
+			return nil, err
+		}
 		return &DatabaseManager{DB: db}, nil
 	}
 
@@ -36,11 +41,8 @@ func NewDatabaseManager(dbPath string) (*DatabaseManager, error) {
 	}
 
 	// Normalizing Windows paths for file: protocol
-	// On Windows, filepath.Abs might return backslashes
-	// libsql driver might expect file:path/to/db
-	// Let's use it as is, or check if we need to convert to slash
-
-	url := "file:" + dbPath
+	// Normalizing Windows paths for file: protocol
+	url := "file:" + dbPath + "?_journal_mode=WAL&_busy_timeout=5000"
 	db, err := sql.Open("libsql", url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open db: %w", err)
@@ -50,7 +52,25 @@ func NewDatabaseManager(dbPath string) (*DatabaseManager, error) {
 		return nil, fmt.Errorf("failed to ping db: %w", err)
 	}
 
+	// Initialize system tables
+	if err := initSystemTables(db); err != nil {
+		return nil, err
+	}
+
 	return &DatabaseManager{DB: db}, nil
+}
+
+func initSystemTables(db *sql.DB) error {
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS _system_queries (
+		id TEXT PRIMARY KEY,
+		sql TEXT NOT NULL,
+		question TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`)
+	if err != nil {
+		return fmt.Errorf("failed to init system tables: %w", err)
+	}
+	return nil
 }
 
 func (m *DatabaseManager) Close() error {

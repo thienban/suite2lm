@@ -324,3 +324,84 @@ func (h *DBHandler) GetTableSchema(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": columns})
 }
+
+func (h *DBHandler) GetSavedQuery(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID required"})
+		return
+	}
+
+	var sql, question string
+	err := h.Manager.DB.QueryRow("SELECT sql, question FROM _system_queries WHERE id = ?", id).Scan(&sql, &question)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Query not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"id": id, "sql": sql, "question": question})
+}
+
+func (h *DBHandler) ExecuteSavedQuery(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID required"})
+		return
+	}
+
+	// 1. Fetch SQL
+	var sqlQuery string
+	err := h.Manager.DB.QueryRow("SELECT sql FROM _system_queries WHERE id = ?", id).Scan(&sqlQuery)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Query not found"})
+		return
+	}
+
+	// 2. Execute SQL (Read-only check still applies in logic if needed, though we assume saved queries are safe-ish)
+	// We should probably re-verify it's a SELECT/PRAGMA just in case
+	queryUpper := strings.ToUpper(strings.TrimSpace(sqlQuery))
+	if !strings.HasPrefix(queryUpper, "SELECT") && !strings.HasPrefix(queryUpper, "PRAGMA") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only SELECT or PRAGMA queries are allowed"})
+		return
+	}
+
+	rows, err := h.Manager.DB.Query(sqlQuery)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	cols, _ := rows.Columns()
+	var result []map[string]interface{}
+
+	for rows.Next() {
+		columns := make([]interface{}, len(cols))
+		columnPointers := make([]interface{}, len(cols))
+		for i := range columns {
+			columnPointers[i] = &columns[i]
+		}
+
+		if err := rows.Scan(columnPointers...); err != nil {
+			continue
+		}
+
+		row := make(map[string]interface{})
+		for i, colName := range cols {
+			valPtr := columnPointers[i].(*interface{})
+			val := *valPtr
+			if b, ok := val.([]byte); ok {
+				row[colName] = string(b)
+			} else {
+				row[colName] = val
+			}
+		}
+		result = append(result, row)
+	}
+
+	if result == nil {
+		result = []map[string]interface{}{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}

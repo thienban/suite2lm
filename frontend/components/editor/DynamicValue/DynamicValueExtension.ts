@@ -13,6 +13,9 @@ export const DynamicValueExtension = Node.create({
             query: {
                 default: null,
             },
+            queryId: {
+                default: null,
+            },
             question: {
                 default: null,
             },
