@@ -1,5 +1,6 @@
-import { FileInfo, getFileContent, getFiles, saveFileContent } from '@/lib/api';
+import { FileInfo } from '@/lib/api';
 import { useCallback, useEffect, useState } from 'react';
+import { useFileContent, useFiles, useSaveFile } from './use-api';
 
 interface UseWorkspaceReturn {
     files: FileInfo[];
@@ -13,59 +14,60 @@ interface UseWorkspaceReturn {
 }
 
 export const useWorkspace = (): UseWorkspaceReturn => {
-    const [files, setFiles] = useState<FileInfo[]>([]);
     const [selectedFile, setSelectedFile] = useState<string | null>(null);
     const [content, setContent] = useState<string>('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+
+    // Query Hooks
+    const {
+        data: files = [],
+        refetch: refetchFiles,
+        isLoading: filesLoading,
+        error: filesError
+    } = useFiles();
+
+    const {
+        data: fileContent,
+        isLoading: contentLoading,
+        error: contentError
+    } = useFileContent(selectedFile || '');
+
+    const { mutateAsync: saveFileMutation } = useSaveFile();
+
+    // Sync content when file loads
+    useEffect(() => {
+        if (fileContent !== undefined) {
+            setContent(fileContent);
+        }
+    }, [fileContent]);
 
     const fetchFiles = useCallback(async () => {
-        try {
-            setLoading(true);
-            const data = await getFiles();
-            setFiles(data);
-            setError(null);
-        } catch (err) {
-            setError("Failed to load files. Is backend running on port 8080?");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchFiles();
-    }, [fetchFiles]);
+        await refetchFiles();
+    }, [refetchFiles]);
 
     const selectFile = useCallback(async (filename: string) => {
-        try {
-            setLoading(true);
-            const text = await getFileContent(filename);
-            setContent(text);
-            setSelectedFile(filename);
-            setError(null);
-        } catch (err) {
-            setError(`Failed to load ${filename}`);
-        } finally {
-            setLoading(false);
-        }
+        setSelectedFile(filename);
+        // Content will be updated via useEffect when useFileContent resolves
     }, []);
 
     const saveFile = useCallback(async (newContent: string) => {
         if (!selectedFile) return;
         try {
-            await saveFileContent(selectedFile, newContent);
+            await saveFileMutation({ name: selectedFile, content: newContent });
         } catch (err) {
-            // We might want to expose this error
+            console.error(err);
             throw new Error("Failed to save");
         }
-    }, [selectedFile]);
+    }, [selectedFile, saveFileMutation]);
+
+    const loading = filesLoading || (!!selectedFile && contentLoading);
+    const error = (filesError as Error)?.message || (contentError as Error)?.message || null;
 
     return {
-        files,
+        files: files || [],
         selectedFile,
         content,
         loading,
-        error,
+        error: error || null,
         fetchFiles,
         selectFile,
         saveFile

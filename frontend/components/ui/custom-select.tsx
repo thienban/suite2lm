@@ -92,8 +92,11 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     {(() => {
                         let label = placeholder;
                         React.Children.forEach(children, (child) => {
-                            if (React.isValidElement(child) && child.props.value === value) {
-                                label = child.props.children;
+                            if (React.isValidElement(child)) {
+                                const item = child as React.ReactElement<any>;
+                                if (item.props.value === value) {
+                                    label = item.props.children;
+                                }
                             }
                         });
                         return label || value;

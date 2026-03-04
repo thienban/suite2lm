@@ -6,48 +6,20 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { useTableData, useTableSchema } from "@/hooks/use-api";
 import { Loader2 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React from "react";
 
 interface DataGridProps {
     tableName: string;
 }
 
 export const DataGrid: React.FC<DataGridProps> = ({ tableName }) => {
-    const [columns, setColumns] = useState<any[]>([]);
-    const [data, setData] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const { data: columns = [], isLoading: loadingSchema, error: schemaError } = useTableSchema(tableName);
+    const { data: data = [], isLoading: loadingData, error: dataError } = useTableData(tableName);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                // 1. Get Columns
-                const colRes = await fetch(`http://localhost:8080/api/db/tables/${tableName}/schema`);
-                const colData = await colRes.json();
-                if (colData.data) {
-                    setColumns(colData.data);
-                }
-
-                // 2. Get Data (Limit 100)
-                const dataRes = await fetch(`http://localhost:8080/api/db/tables/${tableName}`);
-                const rowData = await dataRes.json();
-                if (rowData.data) {
-                    setData(rowData.data);
-                }
-            } catch (err: any) {
-                setError(err.message || "Failed to load data");
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        if (tableName) {
-            fetchData();
-        }
-    }, [tableName]);
+    const loading = loadingSchema || loadingData;
+    const error = (schemaError as Error)?.message || (dataError as Error)?.message;
 
     if (loading) {
         return (
