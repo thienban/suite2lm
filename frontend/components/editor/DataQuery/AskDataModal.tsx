@@ -10,8 +10,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAIQuery, useTables } from '@/hooks/use-api';
 import { Loader2, Sparkles, Table } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 
 interface AskDataModalProps {
     open: boolean;
@@ -21,71 +22,38 @@ interface AskDataModalProps {
 
 export const AskDataModal: React.FC<AskDataModalProps> = ({ open, onOpenChange, onInsert }) => {
     const [question, setQuestion] = useState('');
-    const [loading, setLoading] = useState(false);
     const [resultId, setResultId] = useState<string | null>(null);
     const [resultSummary, setResultSummary] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [tables, setTables] = useState<string[]>([]);
 
-    const fetchTables = async () => {
-        try {
-            const res = await fetch('http://localhost:8080/api/db/tables');
-            const data = await res.json();
-            if (data.data) {
-                setTables(data.data.map((row: any) => row.name));
-            }
-        } catch (err) {
-            console.error("Failed to fetch tables", err);
-        }
-    };
+    // Use TanStack Query hooks
+    const { data: tables = [] } = useTables();
+    const { mutate: generateQuery, isPending: loading } = useAIQuery();
 
-    useEffect(() => {
-        if (open) {
-            fetchTables();
-        }
-    }, [open]);
-
-    const handleGenerate = async (e: React.FormEvent) => {
+    const handleGenerate = (e: React.FormEvent) => {
         e.preventDefault();
         if (!question.trim()) return;
 
-        setLoading(true);
         setError(null);
         setResultId(null);
         setResultSummary(null);
 
-        try {
-            const res = await fetch('http://localhost:8080/api/ai/command', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    mode: 'text_to_sql',
-                    prompt: question,
-                    context: {
-                        active_table: '', // Backend handles schema injection
+        generateQuery(
+            { prompt: question },
+            {
+                onSuccess: (data: any) => {
+                    if (data.type === 'sql_query' && data.query_id) {
+                        setResultId(data.query_id);
+                        setResultSummary(data.summary || 'Query generated successfully');
+                    } else {
+                        setError('Unexpected response format');
                     }
-                }),
-            });
-
-            if (!res.ok) throw new Error('Failed to generate SQL');
-
-            const data = await res.json();
-            if (data.type === 'error') {
-                throw new Error(data.message || 'AI Error');
+                },
+                onError: (err: Error) => {
+                    setError(err.message || 'Something went wrong');
+                }
             }
-
-            if (data.type === 'sql_query' && data.query_id) {
-                setResultId(data.query_id);
-                setResultSummary(data.summary || 'Query generated successfully');
-            } else {
-                throw new Error('Unexpected response format');
-            }
-
-        } catch (err: any) {
-            setError(err.message || 'Something went wrong');
-        } finally {
-            setLoading(false);
-        }
+        );
     };
 
     const handleInsert = () => {
@@ -128,18 +96,18 @@ export const AskDataModal: React.FC<AskDataModalProps> = ({ open, onOpenChange, 
                         <div className="space-y-1.5">
                             <Label className="text-xs text-muted-foreground">Available Tables:</Label>
                             <div className="flex flex-wrap gap-2">
-                                {tables.map(t => (
+                                {tables.map((t: any) => (
                                     <Badge
-                                        key={t}
+                                        key={t.name}
                                         variant="outline"
                                         className="cursor-pointer hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200 transition-colors"
                                         onClick={() => setQuestion(q => {
                                             const prefix = q ? q + ' ' : '';
-                                            return prefix + t;
+                                            return prefix + t.name;
                                         })}
                                     >
                                         <Table className="w-3 h-3 mr-1 opacity-70" />
-                                        {t}
+                                        {t.name}
                                     </Badge>
                                 ))}
                             </div>

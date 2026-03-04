@@ -146,39 +146,27 @@ func (h *DBHandler) ExecuteQuery(c *gin.Context) {
 		return
 	}
 
-	rows, err := h.Manager.DB.Query(req.Query)
+	rows, err := h.Manager.DB.Queryx(req.Query)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	defer rows.Close()
 
-	cols, _ := rows.Columns()
 	var result []map[string]interface{}
 
 	for rows.Next() {
-		columns := make([]interface{}, len(cols))
-		columnPointers := make([]interface{}, len(cols))
-		for i := range columns {
-			columnPointers[i] = &columns[i]
-		}
-
-		if err := rows.Scan(columnPointers...); err != nil {
+		row := make(map[string]interface{})
+		if err := rows.MapScan(row); err != nil {
 			continue
 		}
 
-		row := make(map[string]interface{})
-		for i, colName := range cols {
-			valPtr := columnPointers[i].(*interface{})
-			val := *valPtr
-
-			// Handle []byte specifically for text columns in SQLite/libSQL driver sometimes
-			if b, ok := val.([]byte); ok {
-				row[colName] = string(b)
-			} else {
-				row[colName] = val
+		for k, v := range row {
+			if b, ok := v.([]byte); ok {
+				row[k] = string(b)
 			}
 		}
+
 		result = append(result, row)
 	}
 
@@ -212,19 +200,14 @@ func (h *DBHandler) ListTables(c *gin.Context) {
 	}
 
 	query := "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-	rows, err := h.Manager.DB.Query(query)
-	if err != nil {
+	var tableNames []string
+	if err := h.Manager.DB.Select(&tableNames, query); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	defer rows.Close()
 
 	var tables []map[string]string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			continue
-		}
+	for _, name := range tableNames {
 		tables = append(tables, map[string]string{"name": name})
 	}
 
@@ -245,37 +228,29 @@ func (h *DBHandler) GetTableData(c *gin.Context) {
 
 	// Fetch data (LIMIT 100 for safety)
 	query := fmt.Sprintf("SELECT * FROM %s LIMIT 100", tableName)
-	rows, err := h.Manager.DB.Query(query)
+	rows, err := h.Manager.DB.Queryx(query)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	defer rows.Close()
 
-	cols, _ := rows.Columns()
 	var result []map[string]interface{}
 
 	for rows.Next() {
-		columns := make([]interface{}, len(cols))
-		columnPointers := make([]interface{}, len(cols))
-		for i := range columns {
-			columnPointers[i] = &columns[i]
-		}
-
-		if err := rows.Scan(columnPointers...); err != nil {
+		row := make(map[string]interface{})
+		if err := rows.MapScan(row); err != nil {
 			continue
 		}
 
-		row := make(map[string]interface{})
-		for i, colName := range cols {
-			valPtr := columnPointers[i].(*interface{})
-			val := *valPtr
-			if b, ok := val.([]byte); ok {
-				row[colName] = string(b)
-			} else {
-				row[colName] = val
+		// Convert []byte to string for display if needed, though MapScan usually handles types better
+		// sqlx MapScan might return []byte for strings in sqlite.
+		for k, v := range row {
+			if b, ok := v.([]byte); ok {
+				row[k] = string(b)
 			}
 		}
+
 		result = append(result, row)
 	}
 
@@ -365,37 +340,27 @@ func (h *DBHandler) ExecuteSavedQuery(c *gin.Context) {
 		return
 	}
 
-	rows, err := h.Manager.DB.Query(sqlQuery)
+	rows, err := h.Manager.DB.Queryx(sqlQuery)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	defer rows.Close()
 
-	cols, _ := rows.Columns()
 	var result []map[string]interface{}
 
 	for rows.Next() {
-		columns := make([]interface{}, len(cols))
-		columnPointers := make([]interface{}, len(cols))
-		for i := range columns {
-			columnPointers[i] = &columns[i]
-		}
-
-		if err := rows.Scan(columnPointers...); err != nil {
+		row := make(map[string]interface{})
+		if err := rows.MapScan(row); err != nil {
 			continue
 		}
 
-		row := make(map[string]interface{})
-		for i, colName := range cols {
-			valPtr := columnPointers[i].(*interface{})
-			val := *valPtr
-			if b, ok := val.([]byte); ok {
-				row[colName] = string(b)
-			} else {
-				row[colName] = val
+		for k, v := range row {
+			if b, ok := v.([]byte); ok {
+				row[k] = string(b)
 			}
 		}
+
 		result = append(result, row)
 	}
 
